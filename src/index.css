@@ -1,0 +1,126 @@
+@import 'tailwindcss';
+
+@theme {
+  /* --- Paleta oscura --- */
+  --color-noche: #0a0c0b;
+  --color-asfalto: #121614;
+  --color-panel: #171c19;
+  --color-panel-alto: #1e2521;
+  --color-borde: #2a332d;
+  --color-borde-suave: #212925;
+
+  --color-tiza: #e9efea;
+  --color-humo: #9aa8a0;
+  --color-humo-tenue: #6b7a72;
+
+  /* verde = positivo */
+  --color-verde: #3ddc84;
+  --color-verde-hondo: #14352a;
+  /* rojo = alerta */
+  --color-rojo: #ff5252;
+  --color-rojo-hondo: #3a1618;
+  /* dorado = logros / hitos */
+  --color-dorado: #f5c542;
+  --color-dorado-hondo: #3a2f10;
+
+  --font-display: 'Anton', 'Arial Narrow', 'Haettenschweiler', system-ui, sans-serif;
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    margin: 0;
+    background: var(--color-noche);
+    color: var(--color-tiza);
+    font-family: var(--font-sans);
+    overscroll-behavior: none;
+  }
+  #root {
+    min-height: 100dvh;
+  }
+  button {
+    font: inherit;
+    cursor: pointer;
+  }
+  ::selection {
+    background: var(--color-verde);
+    color: var(--color-noche);
+  }
+}
+
+@layer utilities {
+  .textura-asfalto {
+    background-image:
+      radial-gradient(circle at 20% 0%, rgba(61, 220, 132, 0.07), transparent 45%),
+      radial-gradient(circle at 85% 100%, rgba(245, 197, 66, 0.05), transparent 40%);
+  }
+  .num-grande {
+    font-family: var(--font-display);
+    line-height: 0.85;
+    letter-spacing: -0.02em;
+  }
+  .scroll-fino {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-borde) transparent;
+  }
+}
+
+/* Animaciones */
+@keyframes subir {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes latido-dorado {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 197, 66, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 14px rgba(245, 197, 66, 0);
+  }
+}
+@keyframes brillo {
+  from {
+    background-position: -180% 0;
+  }
+  to {
+    background-position: 280% 0;
+  }
+}
+.anim-subir {
+  animation: subir 0.28s ease-out both;
+}
+.anim-latido {
+  animation: latido-dorado 2s ease-out infinite;
+}
+.anim-brillo {
+  background-image: linear-gradient(
+    100deg,
+    transparent 35%,
+    rgba(245, 197, 66, 0.28) 50%,
+    transparent 65%
+  );
+  background-size: 220% 100%;
+  animation: brillo 2.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
