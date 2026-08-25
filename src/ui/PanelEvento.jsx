@@ -11,13 +11,11 @@ const COLOR_TEXTO = { verde: 'text-verde', rojo: 'text-rojo', dorado: 'text-dora
 
 function Cabecera({ etiqueta, paso, color = 'humo' }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <span
-        className={`font-display text-xs uppercase tracking-[0.22em] ${COLOR_TEXTO[color]}`}
-      >
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      <span className={`font-display text-xs uppercase tracking-[0.22em] ${COLOR_TEXTO[color]}`}>
         {etiqueta}
       </span>
-      {paso && <span className="font-mono text-xs text-humo-tenue">{paso}</span>}
+      {paso && <span className="font-mono text-xs whitespace-nowrap text-humo-tenue">{paso}</span>}
     </div>
   );
 }
@@ -108,7 +106,7 @@ function VistaEvento({ estado, acciones }) {
       <Panel className="space-y-4">
         <Cabecera etiqueta={etiqueta} paso={paso} color={def.esCrisis ? 'rojo' : 'humo'} />
 
-        <h2 className="font-display text-3xl leading-tight text-tiza">{def.titulo}</h2>
+        <h2 className="font-display text-2xl leading-tight text-tiza sm:text-3xl">{def.titulo}</h2>
         <p className="leading-relaxed text-humo">{def.texto}</p>
 
         {def.categoria && (
@@ -139,13 +137,13 @@ function VistaEvento({ estado, acciones }) {
                   key={i}
                   disabled={info.bloqueada}
                   onClick={() => elegir(i)}
-                  className="group w-full rounded-xl border border-borde bg-panel-alto p-3.5 text-left
+                  className="group toque w-full rounded-xl border border-borde bg-panel-alto p-3.5 text-left
                              transition hover:border-verde/60 hover:bg-borde
                              disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-borde
                              disabled:hover:bg-panel-alto
                              focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-verde"
                 >
-                  <span className="block font-semibold text-tiza">{op.texto}</span>
+                  <span className="block font-semibold leading-snug text-tiza">{op.texto}</span>
                   <span className="mt-2 flex flex-wrap items-center gap-1.5">
                     <Chip color={riesgo.color}>{riesgo.label}</Chip>
                     {op.esfuerzo_fisico && <Chip color="humo">💪 Físico</Chip>}
@@ -254,7 +252,7 @@ function VistaConquista({ estado, acciones }) {
     return (
       <Panel className="space-y-4">
         <Cabecera etiqueta="Conquista" color={p.resultado.gano ? 'dorado' : 'rojo'} />
-        <h2 className="font-display text-3xl leading-tight text-tiza">
+        <h2 className="font-display text-2xl leading-tight text-tiza sm:text-3xl">
           {p.resultado.gano ? '¡Es tuyo!' : 'No pudiste'}
         </h2>
         <CajaResultado
@@ -277,10 +275,10 @@ function VistaConquista({ estado, acciones }) {
     <>
       <Panel className="space-y-4 border-dorado/40">
         <Cabecera etiqueta="🏴 Hay territorio para tomar" color="dorado" />
-        <h2 className="font-display text-3xl leading-tight text-dorado">{p.meta.label}</h2>
+        <h2 className="font-display text-2xl leading-tight text-dorado sm:text-3xl">{p.meta.label}</h2>
         <p className="leading-relaxed text-humo">{p.meta.descripcion}</p>
 
-        <div className="grid grid-cols-2 gap-2 text-sm">
+        <div className="grid grid-cols-1 gap-2 text-sm min-[380px]:grid-cols-2">
           <div className="rounded-xl border border-borde bg-panel-alto p-3">
             <div className="text-[10px] uppercase tracking-widest text-humo">Chance base</div>
             <div className="num-grande mt-1 text-2xl text-dorado">{Math.round(p.prob * 100)}%</div>
@@ -342,9 +340,9 @@ function VistaResumen({ estado, acciones, onRetirarse }) {
       <Cabecera etiqueta={`Resumen · ${r.edad} años`} paso={`Año ${r.anio}`} color="dorado" />
 
       {/* Nota del año en box */}
-      <div className="rounded-2xl border border-borde bg-panel-alto p-5 text-center">
+      <div className="rounded-2xl border border-borde bg-panel-alto p-4 text-center sm:p-5">
         <div className="text-[10px] uppercase tracking-[0.2em] text-humo">Nota del año</div>
-        <div className={`num-grande mt-1 text-7xl ${colorNota}`}>{r.nota.toFixed(1)}</div>
+        <div className={`num-grande mt-1 text-6xl sm:text-7xl ${colorNota}`}>{r.nota.toFixed(1)}</div>
         <p className="mt-2 text-sm text-humo">{r.comentario}</p>
         <div className="mt-3 flex flex-wrap justify-center gap-1.5">
           {r.huboMovida && <Chip color="dorado">🎯 Movida +1</Chip>}
@@ -354,10 +352,10 @@ function VistaResumen({ estado, acciones, onRetirarse }) {
       </div>
 
       {/* Guita */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2">
         <div className="rounded-xl border border-borde bg-panel-alto p-3">
           <div className="text-[10px] uppercase tracking-widest text-humo">Ingreso del año</div>
-          <div className={`num-grande mt-1 text-2xl ${colorIngreso}`}>
+          <div className={`num-grande num-ajustable mt-1 text-2xl ${colorIngreso}`}>
             {flechaIngreso} {formatearGuitaCorta(r.ingreso)}
           </div>
           {r.ingresoPrevio != null && (
@@ -368,7 +366,9 @@ function VistaResumen({ estado, acciones, onRetirarse }) {
         </div>
         <div className="rounded-xl border border-verde/25 bg-verde-hondo/50 p-3">
           <div className="text-[10px] uppercase tracking-widest text-verde/70">Guita total</div>
-          <div className="num-grande mt-1 text-2xl text-verde">{formatearGuitaCorta(r.guita)}</div>
+          <div className="num-grande num-ajustable mt-1 text-2xl text-verde">
+            {formatearGuitaCorta(r.guita)}
+          </div>
         </div>
       </div>
 
@@ -381,7 +381,7 @@ function VistaResumen({ estado, acciones, onRetirarse }) {
       {/* Duelo con el rival */}
       <div className="rounded-xl border border-borde bg-panel-alto p-3">
         <Titulo>El duelo eterno</Titulo>
-        <div className="mt-2 flex items-center justify-between text-sm">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
           <span>
             <span className="font-bold text-verde">{r.ventas}</span>{' '}
             <span className="text-humo">tuyas</span>
@@ -413,7 +413,7 @@ function VistaResumen({ estado, acciones, onRetirarse }) {
 
       {/* Lo que pasó */}
       <details className="rounded-xl border border-borde bg-panel-alto p-3">
-        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-widest text-humo">
+        <summary className="toque-chico flex cursor-pointer items-center text-xs font-semibold uppercase tracking-widest text-humo">
           Lo que pasó este año ({r.log.length})
         </summary>
         <ul className="mt-3 space-y-3">

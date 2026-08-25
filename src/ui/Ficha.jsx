@@ -60,17 +60,17 @@ function BarraStat({ stat, valor, delta, alerta }) {
 
 function TarjetaContador({ label, valor, icono, color = 'text-tiza', info }) {
   return (
-    <div className="relative flex-1 rounded-xl border border-borde bg-panel-alto px-2 py-3 text-center">
+    <div className="relative min-w-0 rounded-xl border border-borde bg-panel-alto px-1.5 py-3 text-center sm:px-2">
       {info && (
-        <span className="absolute right-1.5 top-1.5">
+        <span className="absolute right-1 top-1 sm:right-1.5 sm:top-1.5">
           <InfoTip info={info} />
         </span>
       )}
       <div aria-hidden className="text-base leading-none">
         {icono}
       </div>
-      <div className={`num-grande mt-1.5 text-3xl ${color}`}>{valor}</div>
-      <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-humo">
+      <div className={`num-grande num-ajustable mt-1.5 text-2xl sm:text-3xl ${color}`}>{valor}</div>
+      <div className="mt-1 text-[9px] font-semibold uppercase leading-tight tracking-[0.08em] text-humo sm:text-[10px] sm:tracking-[0.15em]">
         {label}
       </div>
     </div>
@@ -164,29 +164,32 @@ function ActivosMercado({ estado }) {
 }
 
 /** La ficha completa del personaje, estilo "El Ídolo". */
-export function Ficha({ estado }) {
+export function Ficha({ estado, className = '' }) {
   const previo = estado.historial[estado.historial.length - 1];
   const deltaDe = (stat) => (previo ? estado.stats[stat] - previo.stats[stat] : 0);
 
   return (
-    <Panel className="textura-asfalto space-y-5">
+    <Panel className={`textura-asfalto min-w-0 space-y-5 ${className}`}>
       {/* Cabecera: número grande + identidad */}
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-3 sm:gap-4">
         <div className="shrink-0 text-center">
-          <div className="num-grande text-6xl text-verde">{estado.edad}</div>
+          <div className="num-grande text-5xl text-verde sm:text-6xl">{estado.edad}</div>
           <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-humo">
             años
           </div>
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate font-display text-2xl leading-tight text-tiza">
+          <h1 className="truncate font-display text-xl leading-tight text-tiza sm:text-2xl">
             {estado.jugador.nombre}
           </h1>
           <p className="truncate text-sm italic text-dorado">"{estado.jugador.apodo}"</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Chip color="humo">{ETAPAS[estado.etapa].label}</Chip>
-            <Chip color={estado.ubicacion.esOrigen ? 'verde' : 'dorado'}>
-              📍 {estado.ubicacion.nombre}
+            <Chip
+              color={estado.ubicacion.esOrigen ? 'verde' : 'dorado'}
+              className="max-w-full min-w-0"
+            >
+              <span className="min-w-0 truncate">📍 {estado.ubicacion.nombre}</span>
             </Chip>
           </div>
         </div>
@@ -197,13 +200,13 @@ export function Ficha({ estado }) {
         <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-verde/70">
           Guita
         </div>
-        <div className="num-grande mt-0.5 text-3xl text-verde">
+        <div className="num-grande num-ajustable mt-0.5 text-2xl text-verde sm:text-3xl">
           {formatearGuita(estado.guita)}
         </div>
       </div>
 
       {/* Contadores */}
-      <div className="flex gap-2">
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
         <TarjetaContador
           label="Ventas"
           valor={estado.ventas}
@@ -263,9 +266,9 @@ export function Ficha({ estado }) {
           <Titulo>Territorios</Titulo>
           <ul className="mt-2 space-y-1">
             {estado.territorios.map((t) => (
-              <li key={`${t.nivel}-${t.nombre}`} className="flex justify-between text-xs">
-                <span className="text-dorado">👑 {t.nombre}</span>
-                <span className="text-humo-tenue">a los {t.edad}</span>
+              <li key={`${t.nivel}-${t.nombre}`} className="flex justify-between gap-2 text-xs">
+                <span className="min-w-0 truncate text-dorado">👑 {t.nombre}</span>
+                <span className="shrink-0 text-humo-tenue">a los {t.edad}</span>
               </li>
             ))}
           </ul>

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { BaseMinijuego } from '../BaseMinijuego.js';
-import { ANCHO, ALTO, COLOR, CSS, FUENTE, FUENTE_DISPLAY } from '../tema.js';
+import { CSS, FUENTE, FUENTE_DISPLAY } from '../tema.js';
 
 /**
  * Piedra / papel / tijera de barrio: puño, patada, cubrirse.
@@ -11,6 +11,9 @@ import { ANCHO, ALTO, COLOR, CSS, FUENTE, FUENTE_DISPLAY } from '../tema.js';
  *
  * Timer por ronda; si no elegís, perdés la ronda. Al mejor de 3 o de 5.
  * Con `decaimiento` el tiempo por ronda se acorta: eso es combate_prolongado.
+ *
+ * Los tres botones se reparten el ancho que haya, asi que en un celular
+ * vertical quedan igual de anchos que en desktop, solo que mas angostos.
  */
 
 const GOLPES = [
@@ -32,28 +35,52 @@ export class PelearScene extends BaseMinijuego {
     this.susRondas = 0;
     this.ronda = 0;
 
-    this.marcador = this.crearMarcador(ANCHO / 2, 92);
+    this.crearBotones();
+
+    // Lo que queda entre el encabezado y los botones es el "ring".
+    const ringTop = this.topJuego + this.fsn(26);
+    const ringBottom = this.yBotones - this.altoBoton / 2 - 12;
+    const centro = (ringTop + ringBottom) / 2;
+
+    this.marcador = this.crearMarcador(this.A / 2, this.topJuego + this.fsn(13));
+
+    const tamRival = Phaser.Math.Clamp(Math.min(this.A, ringBottom - ringTop) * 0.42, 40, 72);
     this.textoRival = this.add
-      .text(ANCHO / 2, 168, '', { fontFamily: FUENTE_DISPLAY, fontSize: '64px', color: CSS.tiza })
-      .setOrigin(0.5);
-    this.textoEstado = this.add
-      .text(ANCHO / 2, 236, '', { fontFamily: FUENTE, fontSize: '17px', color: CSS.humo })
+      .text(this.A / 2, centro - tamRival * 0.15, '', {
+        fontFamily: FUENTE_DISPLAY,
+        fontSize: `${Math.round(tamRival)}px`,
+        color: CSS.tiza,
+      })
       .setOrigin(0.5);
 
-    this.crearBotones();
+    this.textoEstado = this.add
+      .text(this.A / 2, centro + tamRival * 0.62, '', {
+        fontFamily: FUENTE,
+        fontSize: this.fs(16),
+        color: CSS.humo,
+        align: 'center',
+        wordWrap: { width: this.A - this.margen * 2 },
+      })
+      .setOrigin(0.5);
+
     this.siguienteRonda();
   }
 
   crearBotones() {
-    const ancho = 210;
-    const separacion = 236;
-    const y = ALTO - 90;
+    const hueco = Math.max(8, Math.min(20, Math.round(this.A * 0.025)));
+    const ancho = Math.min(210, Math.floor((this.A - this.margen * 2 - hueco * 2) / 3));
+    const alto = Phaser.Math.Clamp(Math.round(this.H * 0.2), 86, 130);
+    const y = this.H - alto / 2 - this.margen * 1.4;
+
+    this.altoBoton = alto;
+    this.yBotones = y;
+
     this.botones = GOLPES.map((golpe, i) => {
-      const x = ANCHO / 2 + (i - 1) * separacion;
-      const cont = this.botonGrande(x, y, ancho, 118, golpe.icono, () => this.elegir(golpe.id), {
+      const x = this.A / 2 + (i - 1) * (ancho + hueco);
+      const cont = this.botonGrande(x, y, ancho, alto, golpe.icono, () => this.elegir(golpe.id), {
         sub: golpe.label,
+        tam: Math.round(Phaser.Math.Clamp(Math.min(ancho * 0.42, alto * 0.4), 26, 48)),
       });
-      cont.txt.setFontSize(48);
       return cont;
     });
   }
@@ -73,7 +100,7 @@ export class PelearScene extends BaseMinijuego {
     this.eligio = false;
     this.actualizarMarcador();
     this.textoRival.setText('?').setColor(CSS.humoTenue);
-    this.textoEstado.setText('Elegí antes de que se te venga encima');
+    this.textoEstado.setText('Elegí antes de que se te venga encima').setColor(CSS.humo);
     this.activarBotones(true);
 
     const dur = Math.max(this.tiempoMinimo, this.tiempoRonda - this.decaimiento * (this.ronda - 1));
@@ -100,7 +127,7 @@ export class PelearScene extends BaseMinijuego {
       suId = Phaser.Utils.Array.GetRandom(GOLPES).id;
     }
 
-    this.textoRival.setText(porId(suId).icono);
+    this.textoRival.setText(porId(suId).icono).setColor(CSS.tiza);
 
     let resultado;
     if (!miId) resultado = 'perdida';
@@ -108,14 +135,15 @@ export class PelearScene extends BaseMinijuego {
     else if (porId(miId).vence === suId) resultado = 'ganada';
     else resultado = 'perdida';
 
+    const yFlash = this.textoRival.y;
     if (resultado === 'ganada') {
       this.misRondas += 1;
       this.textoEstado.setText('Se la comió').setColor(CSS.verde);
-      this.flash('¡TOMÁ!', CSS.verde, 300);
+      this.flash('¡TOMÁ!', CSS.verde, yFlash);
     } else if (resultado === 'perdida') {
       this.susRondas += 1;
       this.textoEstado.setText(miId ? 'Te la comiste vos' : 'Te quedaste duro').setColor(CSS.rojo);
-      this.flash(miId ? 'AY' : '¡TARDE!', CSS.rojo, 300);
+      this.flash(miId ? 'AY' : '¡TARDE!', CSS.rojo, yFlash);
       this.cameras.main.shake(160, 0.006);
     } else {
       this.textoEstado.setText('Chocaron los dos').setColor(CSS.dorado);
@@ -126,7 +154,9 @@ export class PelearScene extends BaseMinijuego {
   }
 
   actualizarMarcador() {
-    this.marcador.setText(`${this.misRondas}  —  ${this.susRondas}   (al mejor de ${this.paraGanar * 2 - 1})`);
+    this.marcador.setText(
+      `${this.misRondas}  —  ${this.susRondas}   (al mejor de ${this.paraGanar * 2 - 1})`
+    );
     this.marcador.setColor(this.misRondas >= this.susRondas ? CSS.verde : CSS.rojo);
   }
 

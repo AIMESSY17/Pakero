@@ -29,7 +29,7 @@ export function Mudanza({ estado, acciones, onCerrar }) {
           <div aria-hidden className="text-5xl">
             🚚
           </div>
-          <h2 className="font-display text-3xl text-tiza">Te mudaste</h2>
+          <h2 className="font-display text-2xl text-tiza sm:text-3xl">Te mudaste</h2>
           <p className="text-lg font-bold text-dorado">{resultado.destino.nombre}</p>
 
           <div className="rounded-xl border border-borde bg-panel-alto p-4 text-left">
@@ -66,7 +66,7 @@ export function Mudanza({ estado, acciones, onCerrar }) {
 
   return (
     <Modal>
-      <Panel className="anim-subir flex max-h-[85dvh] flex-col gap-4">
+      <Panel className="anim-subir flex max-h-[calc(100dvh-4rem)] flex-col gap-4">
         <div>
           <Titulo>Estás en {estado.ubicacion.nombre}</Titulo>
           <h2 className="mt-1 font-display text-2xl text-tiza">Mudarse</h2>
@@ -78,12 +78,12 @@ export function Mudanza({ estado, acciones, onCerrar }) {
           en vez de 70%).
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-1.5 sm:gap-2">
           {GRUPOS.map((g) => (
             <button
               key={g.tipo}
               onClick={() => setGrupo(g.tipo)}
-              className={`flex-1 rounded-xl border px-2 py-2 text-sm font-semibold transition ${
+              className={`toque min-w-0 flex-1 rounded-xl border px-2 py-2 text-xs font-semibold transition sm:text-sm ${
                 grupo === g.tipo
                   ? 'border-verde bg-verde/12 text-verde'
                   : 'border-borde bg-panel-alto text-humo hover:text-tiza'
@@ -102,10 +102,10 @@ export function Mudanza({ estado, acciones, onCerrar }) {
             <button
               key={d.nombre}
               onClick={() => setResultado(acciones.mudarse(d))}
-              className="flex w-full items-center justify-between gap-2 rounded-xl border border-borde
+              className="toque flex w-full items-center justify-between gap-2 rounded-xl border border-borde
                          bg-panel-alto px-3 py-2.5 text-left transition hover:border-verde/60 hover:bg-borde"
             >
-              <span className="text-sm text-tiza">{d.nombre}</span>
+              <span className="min-w-0 flex-1 text-sm text-tiza">{d.nombre}</span>
               {visitadas.has(d.nombre) && <Chip color="humo">Ya estuviste</Chip>}
             </button>
           ))}
@@ -121,8 +121,10 @@ export function Mudanza({ estado, acciones, onCerrar }) {
 
 function Modal({ children }) {
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-noche/92 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md">{children}</div>
+    <div className="segura-toda fixed inset-0 z-40 overflow-y-auto bg-noche/92 backdrop-blur-sm">
+      <div className="flex min-h-full items-center justify-center p-3 sm:p-4">
+        <div className="w-full max-w-md">{children}</div>
+      </div>
     </div>
   );
 }

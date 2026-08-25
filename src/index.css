@@ -32,20 +32,31 @@
   html {
     color-scheme: dark;
     -webkit-tap-highlight-color: transparent;
+    /* Que el sistema no reescale la tipografia al rotar el telefono. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   body {
     margin: 0;
     background: var(--color-noche);
     color: var(--color-tiza);
     font-family: var(--font-sans);
-    overscroll-behavior: none;
+    overscroll-behavior-y: none;
   }
   #root {
     min-height: 100dvh;
+    /* Red de contencion: ningun panel deberia empujar la pagina de costado. */
+    overflow-x: clip;
   }
   button {
     font: inherit;
     cursor: pointer;
+  }
+  /* iOS hace zoom solo al enfocar un input de menos de 16px. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
   }
   ::selection {
     background: var(--color-verde);
@@ -67,6 +78,61 @@
   .scroll-fino {
     scrollbar-width: thin;
     scrollbar-color: var(--color-borde) transparent;
+  }
+
+  /* --- Notch, barra de gestos y bordes redondeados del celular ---------- */
+
+  /*
+   * El padding de pantalla completa YA incluye el safe area, en vez de sumarse
+   * a un `p-*` de Tailwind: dos clases peleando por la misma propiedad ganan
+   * por orden de hoja de estilo y una de las dos se pierde en silencio. Las
+   * pantallas usan `pantalla-segura` en lugar de `p-*`.
+   */
+  .pantalla-segura {
+    padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+    padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
+    padding-bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));
+    padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
+  }
+  @media (min-width: 40rem) {
+    .pantalla-segura {
+      padding-top: max(1.5rem, env(safe-area-inset-top, 0px));
+      padding-right: max(1.5rem, env(safe-area-inset-right, 0px));
+      padding-left: max(1.5rem, env(safe-area-inset-left, 0px));
+    }
+  }
+
+  /* Para elementos que no llevan padding propio (la barra fija de arriba). */
+  .segura-arriba {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  /* Margen, no padding: asi convive con el `p-*` que ya tenga el elemento. */
+  .segura-abajo {
+    margin-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  /* Overlays a pantalla completa: el padding va aca y el contenido adentro. */
+  .segura-toda {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+
+  /* Blanco de toque comodo en pantallas tactiles (44px es el minimo de iOS).
+     Con mouse no hace falta agrandar nada, asi que solo aplica si el puntero
+     es grueso. */
+  @media (pointer: coarse) {
+    .toque {
+      min-height: 44px;
+    }
+    .toque-chico {
+      min-height: 38px;
+    }
+  }
+
+  /* Numeros grandes que no pueden romper el layout en pantallas angostas. */
+  .num-ajustable {
+    overflow-wrap: anywhere;
   }
 }
 

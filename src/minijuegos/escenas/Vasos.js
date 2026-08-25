@@ -1,11 +1,14 @@
 import Phaser from 'phaser';
 import { BaseMinijuego } from '../BaseMinijuego.js';
-import { ANCHO, ALTO, COLOR, CSS, FUENTE, FUENTE_DISPLAY } from '../tema.js';
+import { COLOR, CSS, FUENTE } from '../tema.js';
 
 /**
  * perderla_de_vista: el clásico de los tres vasos. Te muestran dónde quedó,
  * se mezclan, y tenés que seguirla con la vista. Cada ronda se mezclan más
  * rápido y más veces.
+ *
+ * La separación entre vasos se calcula sobre el ancho disponible, asi que los
+ * tres entran siempre en pantalla sin salirse por los costados.
  */
 export class VasosScene extends BaseMinijuego {
   arrancar() {
@@ -14,17 +17,51 @@ export class VasosScene extends BaseMinijuego {
     this.aciertos = 0;
 
     this.cantidad = 3;
-    this.y = 280;
-    this.separacion = 180;
+
+    this.marcador = this.crearMarcador(this.A / 2, this.topJuego + this.fsn(14));
+
+    this.aviso = this.add
+      .text(this.A / 2, this.H - this.margen - this.fsn(14), '', {
+        fontFamily: FUENTE,
+        fontSize: this.fs(16),
+        color: CSS.humo,
+        align: 'center',
+        wordWrap: { width: this.A - this.margen * 2 },
+      })
+      .setOrigin(0.5);
+
+    const top = this.marcador.y + this.fsn(22);
+    const bottom = this.aviso.y - this.fsn(20);
+    this.y = (top + bottom) / 2;
+
+    // Los tres vasos se reparten el ancho util, con un respiro entre ellos, y
+    // el alto sale de lo que sobra a lo largo. El ancho final se recorta contra
+    // el alto para que en una pantalla muy apaisada no queden aplastados.
+    const util = this.A - this.margen * 2;
+    this.separacion = util / this.cantidad;
+    const anchoMax = Math.round(this.separacion * 0.72);
+    const altoMax = Phaser.Math.Clamp((bottom - top) * 0.55, 78, 170);
+    this.altoVaso = Math.round(Phaser.Math.Clamp(anchoMax * 1.14, 78, altoMax));
+    this.anchoVaso = Math.min(anchoMax, Math.round(this.altoVaso / 1.14));
+    this.levantada = Math.round(this.altoVaso * 0.5);
+
     this.posiciones = Array.from(
       { length: this.cantidad },
-      (_, i) => ANCHO / 2 + (i - (this.cantidad - 1) / 2) * this.separacion
+      (_, i) => this.A / 2 + (i - (this.cantidad - 1) / 2) * this.separacion
     );
 
     this.vasos = this.posiciones.map((x, i) => {
       const cont = this.add.container(x, this.y);
-      const cuerpo = this.add.rectangle(0, 0, 116, 132, COLOR.panelAlto).setStrokeStyle(3, COLOR.borde);
-      const tapa = this.add.rectangle(0, -66, 132, 16, COLOR.borde);
+      const cuerpo = this.add
+        .rectangle(0, 0, this.anchoVaso, this.altoVaso, COLOR.panelAlto)
+        .setStrokeStyle(3, COLOR.borde);
+      const tapa = this.add.rectangle(
+        0,
+        -this.altoVaso / 2,
+        Math.round(this.anchoVaso * 1.14),
+        Math.max(10, Math.round(this.altoVaso * 0.12)),
+        COLOR.borde
+      );
       cont.add([cuerpo, tapa]);
       cont.cuerpo = cuerpo;
       cont.indice = i;
@@ -33,13 +70,12 @@ export class VasosScene extends BaseMinijuego {
       return cont;
     });
 
-    this.bolita = this.add.circle(0, this.y + 34, 17, COLOR.dorado).setStrokeStyle(3, COLOR.doradoHondo);
+    this.radioBolita = Phaser.Math.Clamp(Math.round(this.anchoVaso * 0.15), 12, 20);
+    this.yBolita = this.y + this.altoVaso * 0.26;
+    this.bolita = this.add
+      .circle(0, this.yBolita, this.radioBolita, COLOR.dorado)
+      .setStrokeStyle(3, COLOR.doradoHondo);
     this.bolita.setVisible(false);
-
-    this.marcador = this.crearMarcador(ANCHO / 2, 110);
-    this.aviso = this.add
-      .text(ANCHO / 2, ALTO - 76, '', { fontFamily: FUENTE, fontSize: '17px', color: CSS.humo })
-      .setOrigin(0.5);
 
     this.siguienteRonda();
   }
@@ -67,13 +103,13 @@ export class VasosScene extends BaseMinijuego {
     this.correcto = Phaser.Math.Between(0, this.cantidad - 1);
 
     this.aviso.setText('Mirá bien dónde queda').setColor(CSS.humo);
-    this.bolita.setPosition(this.posiciones[this.correcto], this.y + 34).setVisible(true);
+    this.bolita.setPosition(this.posiciones[this.correcto], this.yBolita).setVisible(true);
 
     // Levantar el vasito, mostrar, bajar, mezclar.
     const vaso = this.vasos[this.correcto];
     this.tweens.add({
       targets: vaso,
-      y: this.y - 66,
+      y: this.y - this.levantada,
       duration: 320,
       yoyo: true,
       hold: 750,
@@ -113,7 +149,7 @@ export class VasosScene extends BaseMinijuego {
       else if (this.correcto === b) this.correcto = a;
 
       // Arco para que se vea el cruce.
-      const arco = a < b ? -34 : 34;
+      const arco = (a < b ? -1 : 1) * Math.round(this.altoVaso * 0.26);
       this.tweens.add({
         targets: vasoA,
         x: this.posiciones[b],
@@ -140,15 +176,22 @@ export class VasosScene extends BaseMinijuego {
 
     const acerto = vaso.indice === this.correcto;
     const ganador = this.vasos.find((v) => v.indice === this.correcto);
-    this.bolita.setPosition(ganador.x, this.y + 34).setVisible(true);
+    this.bolita.setPosition(ganador.x, this.yBolita).setVisible(true);
 
-    this.tweens.add({ targets: ganador, y: this.y - 66, duration: 260, yoyo: true, hold: 500 });
+    this.tweens.add({
+      targets: ganador,
+      y: this.y - this.levantada,
+      duration: 260,
+      yoyo: true,
+      hold: 500,
+    });
 
+    const yFlash = this.y - this.altoVaso;
     if (acerto) {
       this.aciertos += 1;
-      this.flash('¡AHÍ ESTABA!', CSS.verde, 180);
+      this.flash('¡AHÍ ESTABA!', CSS.verde, yFlash);
     } else {
-      this.flash('LA PERDISTE', CSS.rojo, 180);
+      this.flash('LA PERDISTE', CSS.rojo, yFlash);
       this.cameras.main.shake(150, 0.007);
     }
     this.marcador.setText(`Ronda ${this.ronda} / ${this.rondas}    Aciertos ${this.aciertos}`);

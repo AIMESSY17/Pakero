@@ -1,10 +1,13 @@
 import Phaser from 'phaser';
 import { BaseMinijuego } from '../BaseMinijuego.js';
-import { ANCHO, ALTO, COLOR, CSS, FUENTE, FUENTE_DISPLAY } from '../tema.js';
+import { COLOR, CSS, FUENTE } from '../tema.js';
 
 /**
  * armar_porro: te muestran el orden de los pasos y después lo tenés que
  * repetir de memoria. Cada ronda suma un paso más.
+ *
+ * La grilla de pasos cambia de forma: 3x2 en apaisado, 2x3 en vertical. Asi
+ * los botones quedan grandes para el dedo en las dos orientaciones.
  */
 
 const PASOS = [
@@ -23,26 +26,42 @@ export class SecuenciaScene extends BaseMinijuego {
     this.ronda = 0;
     this.aciertos = 0;
 
-    const cols = 3;
-    const anchoBoton = 190;
-    const altoBoton = 96;
-    const x0 = ANCHO / 2 - anchoBoton - 16;
-    const y0 = 220;
+    this.marcador = this.crearMarcador(this.A / 2, this.topJuego + this.fsn(13));
+    this.aviso = this.add
+      .text(this.A / 2, this.marcador.y + this.fsn(26), '', {
+        fontFamily: FUENTE,
+        fontSize: this.fs(17),
+        color: CSS.humo,
+        align: 'center',
+        wordWrap: { width: this.A - this.margen * 2 },
+      })
+      .setOrigin(0.5);
+
+    const cols = this.esVertical ? 2 : 3;
+    const filas = Math.ceil(PASOS.length / cols);
+    const hueco = Math.max(8, Math.min(18, Math.round(this.A * 0.025)));
+
+    const anchoBoton = Math.floor((this.A - this.margen * 2 - hueco * (cols - 1)) / cols);
+    const topGrilla = this.aviso.y + this.fsn(20);
+    const altoDisponible = this.H - this.margen - topGrilla;
+    const altoBoton = Phaser.Math.Clamp(
+      Math.floor((altoDisponible - hueco * (filas - 1)) / filas),
+      56,
+      112
+    );
+
+    const altoGrilla = altoBoton * filas + hueco * (filas - 1);
+    const y0 = topGrilla + (altoDisponible - altoGrilla) / 2 + altoBoton / 2;
+    const x0 = this.A / 2 - ((cols - 1) * (anchoBoton + hueco)) / 2;
 
     this.botones = PASOS.map((paso, i) => {
-      const cx = x0 + (i % cols) * (anchoBoton + 16);
-      const cy = y0 + Math.floor(i / cols) * (altoBoton + 18);
-      const cont = this.botonGrande(cx, cy, anchoBoton, altoBoton, paso.icono, () => this.tocar(i), {
+      const cx = x0 + (i % cols) * (anchoBoton + hueco);
+      const cy = y0 + Math.floor(i / cols) * (altoBoton + hueco);
+      return this.botonGrande(cx, cy, anchoBoton, altoBoton, paso.icono, () => this.tocar(i), {
         sub: paso.label,
+        tam: Math.round(Phaser.Math.Clamp(Math.min(anchoBoton * 0.3, altoBoton * 0.4), 22, 38)),
       });
-      cont.txt.setFontSize(34);
-      return cont;
     });
-
-    this.marcador = this.crearMarcador(ANCHO / 2, 104);
-    this.aviso = this.add
-      .text(ANCHO / 2, 160, '', { fontFamily: FUENTE, fontSize: '18px', color: CSS.humo })
-      .setOrigin(0.5);
 
     this.siguienteRonda();
   }
@@ -107,7 +126,7 @@ export class SecuenciaScene extends BaseMinijuego {
         this.aceptando = false;
         this.activar(false);
         this.aciertos += 1;
-        this.flash('¡ARMADO!', CSS.verde, 180);
+        this.flash('¡ARMADO!', CSS.verde, this.aviso.y);
         this.marcador.setText(`Ronda ${this.ronda} / ${this.rondas}    Aciertos ${this.aciertos}`);
         this.esperar(900, () => this.siguienteRonda());
       }
@@ -116,7 +135,7 @@ export class SecuenciaScene extends BaseMinijuego {
       this.activar(false);
       this.resaltar(indice, COLOR.rojo);
       this.cameras.main.shake(160, 0.008);
-      this.flash('SE DESARMÓ', CSS.rojo, 180);
+      this.flash('SE DESARMÓ', CSS.rojo, this.aviso.y);
       this.esperar(900, () => this.siguienteRonda());
     }
   }

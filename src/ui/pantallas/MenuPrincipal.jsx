@@ -3,22 +3,26 @@ import { formatearGuitaCorta } from '../../core/constants.js';
 
 export function MenuPrincipal({ guardado, onNueva, onContinuar, onEstadisticas, onBorrar }) {
   return (
-    <div className="textura-asfalto flex min-h-dvh flex-col items-center justify-center p-6">
+    <div className="pantalla-segura textura-asfalto flex min-h-dvh flex-col items-center justify-center">
       <div className="anim-subir w-full max-w-md text-center">
-        <p className="font-display text-xs uppercase tracking-[0.4em] text-humo">Una vida entera</p>
-        <h1 className="num-grande mt-2 text-8xl text-verde">PAQUERO</h1>
+        <p className="font-display text-[10px] uppercase tracking-[0.35em] text-humo sm:text-xs sm:tracking-[0.4em]">
+          Una vida entera
+        </p>
+        <h1 className="num-grande mt-2 text-6xl text-verde min-[400px]:text-7xl sm:text-8xl">
+          PAQUERO
+        </h1>
         <p className="mt-3 text-sm text-humo">
           De los 12 a los 45. Cinco stats, un rival y una sola esquina para hacerse un nombre.
         </p>
 
-        <div className="mt-10 space-y-3">
+        <div className="mt-8 space-y-3 sm:mt-10">
           {guardado && (
             <>
               <Boton className="w-full" variante="dorado" onClick={onContinuar}>
                 Continuar partida
               </Boton>
               <div className="rounded-xl border border-borde bg-panel px-4 py-3 text-left text-xs text-humo">
-                <div className="font-bold text-tiza">
+                <div className="truncate font-bold text-tiza">
                   {guardado.nombre} "{guardado.apodo}"
                 </div>
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
@@ -45,14 +49,14 @@ export function MenuPrincipal({ guardado, onNueva, onContinuar, onEstadisticas, 
           {guardado && (
             <button
               onClick={onBorrar}
-              className="w-full pt-2 text-xs text-humo-tenue underline underline-offset-4 hover:text-rojo"
+              className="toque-chico w-full pt-2 text-xs text-humo-tenue underline underline-offset-4 hover:text-rojo"
             >
               Borrar la partida guardada
             </button>
           )}
         </div>
 
-        <p className="mt-12 text-[11px] leading-relaxed text-humo-tenue">
+        <p className="mt-10 text-[11px] leading-relaxed text-humo-tenue sm:mt-12">
           Todos los personajes, marcas y lugares son parodias inventadas.
           <br />
           Cualquier parecido con la realidad es problema tuyo.

@@ -29,7 +29,7 @@ function TarjetaItem({ item, estado, onComprar }) {
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-2">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <span className={`font-mono text-sm font-bold ${alcanza ? 'text-verde' : 'text-rojo'}`}>
           {formatearGuita(item.precio)}
         </span>
@@ -39,7 +39,7 @@ function TarjetaItem({ item, estado, onComprar }) {
           <button
             disabled={deshabilitado}
             onClick={() => onComprar(item.id)}
-            className="rounded-lg border border-verde bg-verde px-4 py-1.5 text-sm font-bold text-noche
+            className="toque-chico rounded-lg border border-verde bg-verde px-4 py-2 text-sm font-bold text-noche
                        transition hover:brightness-110 disabled:cursor-not-allowed
                        disabled:border-borde disabled:bg-transparent disabled:text-humo-tenue"
           >
@@ -71,25 +71,27 @@ export function Mercado({ estado, acciones, onVolver }) {
   const meta = FAMILIAS_MERCADO.find((f) => f.id === familia);
 
   return (
-    <div className="textura-asfalto min-h-dvh p-4 sm:p-6">
+    <div className="pantalla-segura textura-asfalto min-h-dvh">
       <div className="mx-auto max-w-3xl space-y-4">
         <header className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="font-display text-3xl text-tiza">El Mercado</h1>
+          <div className="min-w-0">
+            <h1 className="font-display text-2xl text-tiza sm:text-3xl">El Mercado</h1>
             <p className="text-sm text-humo">Todo se compra. La cuestión es con qué.</p>
           </div>
-          <div className="rounded-xl border border-verde/25 bg-verde-hondo/50 px-4 py-2 text-right">
+          <div className="min-w-0 rounded-xl border border-verde/25 bg-verde-hondo/50 px-3 py-2 text-right sm:px-4">
             <div className="text-[10px] uppercase tracking-widest text-verde/70">Tu guita</div>
-            <div className="num-grande text-2xl text-verde">{formatearGuitaCorta(estado.guita)}</div>
+            <div className="num-grande num-ajustable text-2xl text-verde">
+              {formatearGuitaCorta(estado.guita)}
+            </div>
           </div>
         </header>
 
-        <div className="flex gap-2">
+        <div className="flex gap-1.5 sm:gap-2">
           {FAMILIAS_MERCADO.map((f) => (
             <button
               key={f.id}
               onClick={() => setFamilia(f.id)}
-              className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold transition ${
+              className={`toque min-w-0 flex-1 rounded-xl border px-2 py-2.5 text-xs font-semibold transition sm:px-3 sm:text-sm ${
                 familia === f.id
                   ? 'border-verde bg-verde/12 text-verde'
                   : 'border-borde bg-panel text-humo hover:text-tiza'
@@ -98,7 +100,7 @@ export function Mercado({ estado, acciones, onVolver }) {
               <span aria-hidden className="mr-1">
                 {f.icono}
               </span>
-              {f.label}
+              <span className="align-middle">{f.label}</span>
             </button>
           ))}
         </div>

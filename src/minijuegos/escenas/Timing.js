@@ -1,11 +1,14 @@
 import Phaser from 'phaser';
 import { BaseMinijuego } from '../BaseMinijuego.js';
-import { ANCHO, ALTO, COLOR, CSS, FUENTE, FUENTE_DISPLAY } from '../tema.js';
+import { COLOR, CSS, FUENTE } from '../tema.js';
 
 /**
  * pasar_droga: el pulso va y viene, vos lo frenás en la zona buena.
  * Cada ronda la zona se achica y el pulso va más rápido. Un toque en
  * cualquier lado frena el pulso.
+ *
+ * La pista ocupa el ancho que haya y las zonas se miden como fraccion de esa
+ * pista, asi que la dificultad es la misma en cualquier pantalla.
  */
 export class TimingScene extends BaseMinijuego {
   arrancar() {
@@ -14,21 +17,37 @@ export class TimingScene extends BaseMinijuego {
     this.aciertos = 0;
     this.puntos = 0;
 
-    this.pistaX = 70;
-    this.pistaAncho = ANCHO - 140;
-    this.pistaY = 260;
+    const pad = this.margen + Math.round(this.A * 0.05);
+    this.pistaX = pad;
+    this.pistaAncho = this.A - pad * 2;
 
-    this.add.rectangle(ANCHO / 2, this.pistaY, this.pistaAncho, 46, COLOR.panel).setStrokeStyle(2, COLOR.borde);
-    this.zona = this.add.rectangle(0, this.pistaY, 10, 46, COLOR.verde, 0.35);
-    this.zonaPerfecta = this.add.rectangle(0, this.pistaY, 4, 46, COLOR.dorado, 0.5);
-    this.aguja = this.add.rectangle(this.pistaX, this.pistaY, 6, 62, COLOR.tiza);
+    this.marcador = this.crearMarcador(this.A / 2, this.topJuego + this.fsn(14));
 
-    this.marcador = this.crearMarcador(ANCHO / 2, 110);
+    const pistaAlto = Phaser.Math.Clamp(Math.round(this.H * 0.1), 40, 60);
+    const zonaTop = this.marcador.y + this.fsn(24);
+    this.pistaY = (zonaTop + this.H) / 2;
+
+    this.add
+      .rectangle(this.A / 2, this.pistaY, this.pistaAncho, pistaAlto, COLOR.panel)
+      .setStrokeStyle(2, COLOR.borde);
+    this.zona = this.add.rectangle(0, this.pistaY, 10, pistaAlto, COLOR.verde, 0.35);
+    this.zonaPerfecta = this.add.rectangle(0, this.pistaY, 4, pistaAlto, COLOR.dorado, 0.5);
+    this.aguja = this.add.rectangle(
+      this.pistaX,
+      this.pistaY,
+      6,
+      Math.round(pistaAlto * 1.35),
+      COLOR.tiza
+    );
+    this.pistaAlto = pistaAlto;
+
     this.pista = this.add
-      .text(ANCHO / 2, ALTO - 90, 'Tocá la pantalla para frenar el pulso', {
+      .text(this.A / 2, this.H - this.margen - this.fsn(12), 'Tocá la pantalla para frenar el pulso', {
         fontFamily: FUENTE,
-        fontSize: '17px',
+        fontSize: this.fs(16),
         color: CSS.humo,
+        align: 'center',
+        wordWrap: { width: this.A - this.margen * 2 },
       })
       .setOrigin(0.5);
 
@@ -45,16 +64,18 @@ export class TimingScene extends BaseMinijuego {
     this.marcador.setText(`Ronda ${this.ronda} / ${this.rondas}    Aciertos ${this.aciertos}`);
 
     const dificultad = (this.ronda - 1) / Math.max(1, this.rondas - 1);
-    const anchoZona = Phaser.Math.Linear(180, 62, dificultad);
+    // Las zonas van del 27% al 9% de la pista, igual que en la version fija.
+    const anchoZona = this.pistaAncho * Phaser.Math.Linear(0.27, 0.094, dificultad);
+    const borde = anchoZona / 2 + this.pistaAncho * 0.03;
     const centro = Phaser.Math.Between(
-      this.pistaX + anchoZona / 2 + 20,
-      this.pistaX + this.pistaAncho - anchoZona / 2 - 20
+      Math.round(this.pistaX + borde),
+      Math.round(this.pistaX + this.pistaAncho - borde)
     );
 
     this.zona.setPosition(centro, this.pistaY);
-    this.redimensionar(this.zona, anchoZona, 46);
+    this.redimensionar(this.zona, anchoZona, this.pistaAlto);
     this.zonaPerfecta.setPosition(centro, this.pistaY);
-    this.redimensionar(this.zonaPerfecta, Math.max(14, anchoZona * 0.22), 46);
+    this.redimensionar(this.zonaPerfecta, Math.max(10, anchoZona * 0.22), this.pistaAlto);
     this.centroZona = centro;
     this.anchoZona = anchoZona;
 
@@ -84,21 +105,22 @@ export class TimingScene extends BaseMinijuego {
 
     const distancia = Math.abs(this.aguja.x - this.centroZona);
     const dentro = distancia <= this.anchoZona / 2;
-    const perfecto = distancia <= Math.max(7, this.anchoZona * 0.11);
+    const perfecto = distancia <= Math.max(this.pistaAncho * 0.011, this.anchoZona * 0.11);
+    const yFlash = this.pistaY - this.pistaAlto * 2;
 
     if (porTiempo) {
-      this.flash('¡SE TE FUE!', CSS.rojo, 340);
+      this.flash('¡SE TE FUE!', CSS.rojo, yFlash);
     } else if (perfecto) {
       this.aciertos += 1;
       this.puntos += 1;
-      this.flash('¡CLAVADO!', CSS.dorado, 340);
+      this.flash('¡CLAVADO!', CSS.dorado, yFlash);
       this.cameras.main.flash(90, 245, 197, 66);
     } else if (dentro) {
       this.aciertos += 1;
       this.puntos += 0.65;
-      this.flash('BIEN', CSS.verde, 340);
+      this.flash('BIEN', CSS.verde, yFlash);
     } else {
-      this.flash('AFUERA', CSS.rojo, 340);
+      this.flash('AFUERA', CSS.rojo, yFlash);
       this.cameras.main.shake(140, 0.006);
     }
 
@@ -109,7 +131,11 @@ export class TimingScene extends BaseMinijuego {
   cerrar() {
     this.terminar(
       this.puntos / this.rondas,
-      this.aciertos === this.rondas ? '¡Pasó todo limpio!' : this.aciertos >= this.rondas / 2 ? 'Pasó casi todo' : 'Se cayó la entrega'
+      this.aciertos === this.rondas
+        ? '¡Pasó todo limpio!'
+        : this.aciertos >= this.rondas / 2
+          ? 'Pasó casi todo'
+          : 'Se cayó la entrega'
     );
   }
 }

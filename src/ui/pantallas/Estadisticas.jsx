@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Boton, Panel, Titulo } from '../base.jsx';
+import { Boton, Panel, Titulo, usaPantallaAngosta } from '../base.jsx';
 import { STATS, STAT_META, formatearGuitaCorta } from '../../core/constants.js';
 import { nombreRivalCompleto } from '../../data/nombres.js';
 
@@ -16,10 +16,15 @@ const COLOR_SERIE = {
   salud: '#c88cff',
 };
 
-function GraficoLineas({ historial, visibles }) {
-  const W = 640;
-  const H = 260;
-  const pad = { top: 14, right: 14, bottom: 26, left: 30 };
+function GraficoLineas({ historial, visibles, angosta }) {
+  // En celular se dibuja un grafico mas chico con el texto proporcionalmente
+  // mas grande: escalar el de escritorio deja las etiquetas en 5 px.
+  const W = angosta ? 340 : 640;
+  const H = angosta ? 210 : 260;
+  const fuente = angosta ? 12 : 10;
+  const pad = angosta
+    ? { top: 12, right: 8, bottom: 30, left: 30 }
+    : { top: 14, right: 14, bottom: 26, left: 30 };
   const areaW = W - pad.left - pad.right;
   const areaH = H - pad.top - pad.bottom;
 
@@ -33,7 +38,7 @@ function GraficoLineas({ historial, visibles }) {
       {[0, 25, 50, 75, 100].map((v) => (
         <g key={v}>
           <line x1={pad.left} y1={y(v)} x2={W - pad.right} y2={y(v)} stroke="#2a332d" strokeWidth="1" />
-          <text x={pad.left - 6} y={y(v) + 4} textAnchor="end" fontSize="10" fill="#6b7a72">
+          <text x={pad.left - 6} y={y(v) + 4} textAnchor="end" fontSize={fuente} fill="#6b7a72">
             {v}
           </text>
         </g>
@@ -41,8 +46,8 @@ function GraficoLineas({ historial, visibles }) {
 
       {/* Ejes de edad */}
       {historial.map((h, i) =>
-        n <= 12 || i % Math.ceil(n / 10) === 0 ? (
-          <text key={i} x={x(i)} y={H - 8} textAnchor="middle" fontSize="10" fill="#6b7a72">
+        n <= (angosta ? 8 : 12) || i % Math.ceil(n / (angosta ? 6 : 10)) === 0 ? (
+          <text key={i} x={x(i)} y={H - 8} textAnchor="middle" fontSize={fuente} fill="#6b7a72">
             {h.edad}
           </text>
         ) : null
@@ -57,13 +62,19 @@ function GraficoLineas({ historial, visibles }) {
               points={puntos}
               fill="none"
               stroke={COLOR_SERIE[stat]}
-              strokeWidth="2.5"
+              strokeWidth={angosta ? 2 : 2.5}
               strokeLinejoin="round"
               strokeLinecap="round"
             />
-            {n <= 20 &&
+            {n <= (angosta ? 14 : 20) &&
               historial.map((h, i) => (
-                <circle key={i} cx={x(i)} cy={y(h.stats[stat])} r="2.5" fill={COLOR_SERIE[stat]} />
+                <circle
+                  key={i}
+                  cx={x(i)}
+                  cy={y(h.stats[stat])}
+                  r={angosta ? 2 : 2.5}
+                  fill={COLOR_SERIE[stat]}
+                />
               ))}
           </g>
         );
@@ -72,17 +83,20 @@ function GraficoLineas({ historial, visibles }) {
   );
 }
 
-function GraficoRival({ historial, rival, ventas }) {
-  const W = 640;
-  const H = 220;
-  const pad = { top: 14, right: 14, bottom: 26, left: 34 };
+function GraficoRival({ historial, rival, ventas, angosta }) {
+  const W = angosta ? 340 : 640;
+  const H = angosta ? 180 : 220;
+  const fuente = angosta ? 12 : 10;
+  const pad = angosta
+    ? { top: 12, right: 8, bottom: 30, left: 32 }
+    : { top: 14, right: 14, bottom: 26, left: 34 };
   const areaW = W - pad.left - pad.right;
   const areaH = H - pad.top - pad.bottom;
 
   const max = Math.max(1, ventas, rival.ventas);
   const n = historial.length;
   const anchoGrupo = areaW / Math.max(1, n);
-  const anchoBarra = Math.max(2, Math.min(12, anchoGrupo / 2.6));
+  const anchoBarra = Math.max(1.5, Math.min(12, anchoGrupo / 2.6));
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Ventas contra el rival">
@@ -99,7 +113,7 @@ function GraficoRival({ historial, rival, ventas }) {
             x={pad.left - 6}
             y={pad.top + areaH - f * areaH + 4}
             textAnchor="end"
-            fontSize="10"
+            fontSize={fuente}
             fill="#6b7a72"
           >
             {Math.round(max * f)}
@@ -130,8 +144,8 @@ function GraficoRival({ historial, rival, ventas }) {
               opacity="0.85"
               rx="1.5"
             />
-            {(n <= 12 || i % Math.ceil(n / 10) === 0) && (
-              <text x={cx} y={H - 8} textAnchor="middle" fontSize="10" fill="#6b7a72">
+            {(n <= (angosta ? 8 : 12) || i % Math.ceil(n / (angosta ? 6 : 10)) === 0) && (
+              <text x={cx} y={H - 8} textAnchor="middle" fontSize={fuente} fill="#6b7a72">
                 {h.edad}
               </text>
             )}
@@ -153,7 +167,12 @@ function Radar({ stats }) {
   const poligono = ejes.map((s, i) => punto(i, stats[s] / 100).join(',')).join(' ');
 
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} className="mx-auto w-56" role="img" aria-label="Perfil de stats">
+    <svg
+      viewBox={`0 0 ${size} ${size}`}
+      className="mx-auto w-full max-w-64"
+      role="img"
+      aria-label="Perfil de stats"
+    >
       {[0.25, 0.5, 0.75, 1].map((f) => (
         <polygon
           key={f}
@@ -174,7 +193,7 @@ function Radar({ stats }) {
             x={px}
             y={py + 3}
             textAnchor="middle"
-            fontSize="10"
+            fontSize="12"
             fill={COLOR_SERIE[s]}
             fontWeight="700"
           >
@@ -187,14 +206,13 @@ function Radar({ stats }) {
 }
 
 export function Estadisticas({ estado, onVolver }) {
-  const [visibles, setVisibles] = useState(
-    Object.fromEntries(STATS.map((s) => [s, true]))
-  );
+  const [visibles, setVisibles] = useState(Object.fromEntries(STATS.map((s) => [s, true])));
+  const angosta = usaPantallaAngosta();
   const historial = estado.historial;
 
   if (historial.length === 0) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center">
+      <div className="pantalla-segura flex min-h-dvh flex-col items-center justify-center gap-4 text-center">
         <p className="text-humo">Todavía no cerraste ningún año. No hay nada que graficar.</p>
         <Boton variante="fantasma" onClick={onVolver}>
           ← Volver
@@ -208,10 +226,10 @@ export function Estadisticas({ estado, onVolver }) {
   const mejorIngreso = historial.reduce((a, h) => (h.ingreso > a.ingreso ? h : a), historial[0]);
 
   return (
-    <div className="textura-asfalto min-h-dvh p-4 sm:p-6">
+    <div className="pantalla-segura textura-asfalto min-h-dvh">
       <div className="mx-auto max-w-3xl space-y-4">
         <header>
-          <h1 className="font-display text-3xl text-tiza">Estadísticas</h1>
+          <h1 className="font-display text-2xl text-tiza sm:text-3xl">Estadísticas</h1>
           <p className="text-sm text-humo">
             {estado.jugador.nombre} "{estado.jugador.apodo}" · {historial.length}{' '}
             {historial.length === 1 ? 'año' : 'años'} de carrera
@@ -219,15 +237,18 @@ export function Estadisticas({ estado, onVolver }) {
         </header>
 
         {/* Números gordos */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
           {[
             { label: 'Mejor nota', valor: mejorNota.nota.toFixed(1), sub: `a los ${mejorNota.edad}`, color: 'text-dorado' },
             { label: 'Mejor año', valor: formatearGuitaCorta(mejorIngreso.ingreso), sub: `a los ${mejorIngreso.edad}`, color: 'text-verde' },
             { label: 'Ventas', valor: estado.ventas, sub: `rival ${estado.rival.ventas}`, color: gana ? 'text-verde' : 'text-rojo' },
             { label: 'Movidas', valor: estado.movidas, sub: `${estado.territorios.length}/4 territorios`, color: 'text-tiza' },
           ].map((t) => (
-            <div key={t.label} className="rounded-xl border border-borde bg-panel p-3 text-center">
-              <div className={`num-grande text-2xl ${t.color}`}>{t.valor}</div>
+            <div
+              key={t.label}
+              className="min-w-0 rounded-xl border border-borde bg-panel p-3 text-center"
+            >
+              <div className={`num-grande num-ajustable text-2xl ${t.color}`}>{t.valor}</div>
               <div className="mt-1 text-[10px] uppercase tracking-widest text-humo">{t.label}</div>
               <div className="text-[11px] text-humo-tenue">{t.sub}</div>
             </div>
@@ -237,13 +258,13 @@ export function Estadisticas({ estado, onVolver }) {
         {/* Evolución de los stats */}
         <Panel className="space-y-3">
           <Titulo>Evolución de los cinco</Titulo>
-          <GraficoLineas historial={historial} visibles={visibles} />
+          <GraficoLineas historial={historial} visibles={visibles} angosta={angosta} />
           <div className="flex flex-wrap gap-2">
             {STATS.map((s) => (
               <button
                 key={s}
                 onClick={() => setVisibles((v) => ({ ...v, [s]: !v[s] }))}
-                className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
+                className={`toque-chico flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                   visibles[s] ? 'border-borde bg-panel-alto text-tiza' : 'border-borde-suave text-humo-tenue'
                 }`}
               >
@@ -265,14 +286,19 @@ export function Estadisticas({ estado, onVolver }) {
               {gana ? 'VAS ARRIBA' : estado.ventas === estado.rival.ventas ? 'EMPATE' : 'VAS ABAJO'}
             </span>
           </div>
-          <GraficoRival historial={historial} rival={estado.rival} ventas={estado.ventas} />
-          <div className="flex items-center justify-center gap-5 text-xs">
+          <GraficoRival
+            historial={historial}
+            rival={estado.rival}
+            ventas={estado.ventas}
+            angosta={angosta}
+          />
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 text-center text-xs">
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-sm bg-verde" /> Vos ({estado.ventas})
+              <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-verde" /> Vos ({estado.ventas})
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-sm bg-rojo" /> {nombreRivalCompleto(estado.rival)} (
-              {estado.rival.ventas})
+              <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-rojo" />{' '}
+              {nombreRivalCompleto(estado.rival)} ({estado.rival.ventas})
             </span>
           </div>
         </Panel>

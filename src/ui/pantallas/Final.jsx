@@ -37,18 +37,26 @@ export function Final({ estado, onNueva, onMenu, onEstadisticas }) {
   const empate = estado.ventas === estado.rival.ventas;
 
   return (
-    <div className="textura-asfalto min-h-dvh p-4 sm:p-6">
+    <div className="pantalla-segura textura-asfalto min-h-dvh">
       <div className="anim-subir mx-auto max-w-2xl space-y-4">
         {/* El final */}
-        <div className={`rounded-3xl border-2 p-8 text-center shadow-2xl ${BORDE_COLOR[f.color]}`}>
-          <div aria-hidden className="text-6xl">
+        <div
+          className={`rounded-3xl border-2 p-5 text-center shadow-2xl sm:p-8 ${BORDE_COLOR[f.color]}`}
+        >
+          <div aria-hidden className="text-5xl sm:text-6xl">
             {f.icono}
           </div>
-          <p className="mt-4 font-display text-xs uppercase tracking-[0.3em] text-humo">
+          <p className="mt-4 font-display text-[10px] uppercase tracking-[0.25em] text-humo sm:text-xs sm:tracking-[0.3em]">
             Así termina la historia
           </p>
-          <h1 className={`num-grande mt-2 text-5xl ${TEXTO_COLOR[f.color]}`}>{f.titulo}</h1>
-          <p className="mt-3 font-display text-lg tracking-wider text-tiza">"{f.apodo}"</p>
+          <h1
+            className={`num-grande num-ajustable mt-2 text-4xl leading-none sm:text-5xl ${TEXTO_COLOR[f.color]}`}
+          >
+            {f.titulo}
+          </h1>
+          <p className="mt-3 font-display text-base tracking-wider text-tiza sm:text-lg">
+            "{f.apodo}"
+          </p>
           <div className="mt-4">
             <BadgeRareza rareza={f.rareza} />
           </div>
@@ -65,8 +73,11 @@ export function Final({ estado, onNueva, onMenu, onEstadisticas }) {
               { l: 'Movidas', v: estado.movidas },
               { l: 'Territorios', v: `${estado.territorios.length}/4` },
             ].map((t) => (
-              <div key={t.l} className="rounded-xl border border-borde bg-panel-alto p-3 text-center">
-                <div className="num-grande text-2xl text-tiza">{t.v}</div>
+              <div
+                key={t.l}
+                className="min-w-0 rounded-xl border border-borde bg-panel-alto p-3 text-center"
+              >
+                <div className="num-grande num-ajustable text-2xl text-tiza">{t.v}</div>
                 <div className="mt-1 text-[10px] uppercase tracking-widest text-humo">{t.l}</div>
               </div>
             ))}
@@ -74,14 +85,16 @@ export function Final({ estado, onNueva, onMenu, onEstadisticas }) {
 
           <div className="rounded-xl border border-verde/25 bg-verde-hondo/40 p-4 text-center">
             <div className="text-[10px] uppercase tracking-widest text-verde/70">Guita final</div>
-            <div className="num-grande mt-1 text-3xl text-verde">{formatearGuita(estado.guita)}</div>
+            <div className="num-grande num-ajustable mt-1 text-2xl text-verde sm:text-3xl">
+              {formatearGuita(estado.guita)}
+            </div>
           </div>
 
           <ul className="space-y-1.5">
             {STATS.map((s) => (
               <li key={s} className="flex items-center gap-2">
                 <span aria-hidden>{STAT_META[s].icono}</span>
-                <span className="w-20 text-xs text-humo">{STAT_META[s].label}</span>
+                <span className="w-16 shrink-0 text-xs text-humo sm:w-20">{STAT_META[s].label}</span>
                 <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-noche">
                   <span
                     className="block h-full rounded-full bg-humo"
@@ -102,10 +115,10 @@ export function Final({ estado, onNueva, onMenu, onEstadisticas }) {
               className={`rounded-xl border p-4 text-center ${gana ? 'border-verde/50 bg-verde-hondo/30' : 'border-borde bg-panel-alto'}`}
             >
               <div className="text-xs text-humo">Vos</div>
-              <div className={`num-grande mt-1 text-4xl ${gana ? 'text-verde' : 'text-tiza'}`}>
+              <div className={`num-grande mt-1 text-3xl sm:text-4xl ${gana ? 'text-verde' : 'text-tiza'}`}>
                 {estado.ventas}
               </div>
-              <div className="mt-1 text-[11px] text-humo-tenue">
+              <div className="mt-1 text-[11px] break-words text-humo-tenue">
                 {estado.jugador.nombre} "{estado.jugador.apodo}"
               </div>
             </div>
@@ -113,10 +126,14 @@ export function Final({ estado, onNueva, onMenu, onEstadisticas }) {
               className={`rounded-xl border p-4 text-center ${!gana && !empate ? 'border-rojo/50 bg-rojo-hondo/30' : 'border-borde bg-panel-alto'}`}
             >
               <div className="text-xs text-humo">El rival</div>
-              <div className={`num-grande mt-1 text-4xl ${!gana && !empate ? 'text-rojo' : 'text-tiza'}`}>
+              <div
+                className={`num-grande mt-1 text-3xl sm:text-4xl ${!gana && !empate ? 'text-rojo' : 'text-tiza'}`}
+              >
                 {estado.rival.ventas}
               </div>
-              <div className="mt-1 text-[11px] text-humo-tenue">{nombreRivalCompleto(estado.rival)}</div>
+              <div className="mt-1 text-[11px] break-words text-humo-tenue">
+                {nombreRivalCompleto(estado.rival)}
+              </div>
             </div>
           </div>
           <p
@@ -137,9 +154,9 @@ export function Final({ estado, onNueva, onMenu, onEstadisticas }) {
             {estado.zonasVisitadas.map((z, i) => {
               const conquistada = estado.territorios.some((t) => t.nombre === z.nombre);
               return (
-                <li key={i} className="flex items-center gap-3">
+                <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="font-mono text-xs text-humo-tenue">{z.edad}</span>
-                  <span className="flex-1 text-sm text-tiza">{z.nombre}</span>
+                  <span className="min-w-0 flex-1 text-sm text-tiza">{z.nombre}</span>
                   {z.origen && <Chip color="verde">Origen</Chip>}
                   {conquistada && <Chip color="dorado">👑 Conquistada</Chip>}
                 </li>
