@@ -27,10 +27,27 @@ export function ctxTexto(estado) {
     hijo: estado.hijo,
     hijoNombre: estado.hijo?.nombre ?? 'el pibe',
     ubicacion: estado.ubicacion,
+    // El streamer parodiado del cartel de intro. Lo usan los eventos de
+    // farandula para nombrar a alguien que ya existe en esta partida.
+    streamer: estado.streamer,
     camino: estado.camino?.elegido ? CAMINOS[estado.camino.elegido] : null,
     subVariante: estado.camino?.subVariante ? SUBVARIANTES[estado.camino.subVariante] : null,
     costoReconversion: costoReconversion(estado),
     territorios: estado.territorios.length,
+
+    // Contexto de Territorio para los eventos de acercamiento, dueño,
+    // mantenimiento y tension. Lo arma el motor en `focoTerritorio` antes de
+    // construir el año; aca solo se expone con `?.` para que un evento que lo
+    // lea cuando no corresponde no reviente, solo quede sin ese dato.
+    terr: {
+      duenio: estado.focoTerritorio?.duenio ?? estado.pendienteDuenio ?? null,
+      lugar: estado.focoTerritorio?.lugar ?? null,
+      flavor: estado.focoTerritorio?.flavor ?? null,
+      hito: estado.focoTerritorio?.hito ?? null,
+      aniosDesde: estado.focoTerritorio?.aniosDesde ?? null,
+      a: estado.focoTerritorio?.a ?? null,
+      b: estado.focoTerritorio?.b ?? null,
+    },
   };
 }
 

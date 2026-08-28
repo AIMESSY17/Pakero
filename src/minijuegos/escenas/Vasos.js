@@ -150,18 +150,23 @@ export class VasosScene extends BaseMinijuego {
 
       // Arco para que se vea el cruce.
       const arco = (a < b ? -1 : 1) * Math.round(this.altoVaso * 0.26);
+      // Ojo con el shorthand: la variable local es `duracion` (en castellano,
+      // como todo el resto del archivo) y la clave que espera Phaser es
+      // `duration`. Escribir `duration,` a secas buscaba una variable que no
+      // existe y tiraba el tween del primer cruce; como este minijuego no
+      // tiene barra de tiempo, se quedaba colgado para siempre.
       this.tweens.add({
         targets: vasoA,
         x: this.posiciones[b],
         y: { value: this.y + arco, duration: duracion / 2, yoyo: true },
-        duration,
+        duration: duracion,
         ease: 'Sine.InOut',
       });
       this.tweens.add({
         targets: vasoB,
         x: this.posiciones[a],
         y: { value: this.y - arco, duration: duracion / 2, yoyo: true },
-        duration,
+        duration: duracion,
         ease: 'Sine.InOut',
         onComplete: paso,
       });

@@ -1,10 +1,18 @@
 import { Panel, Titulo, Chip, InfoTip } from './base.jsx';
-import { STATS, STAT_META, formatearGuita, formatearGuitaCorta, ETAPAS } from '../core/constants.js';
+import {
+  STATS,
+  STAT_META,
+  formatearGuita,
+  formatearGuitaCorta,
+  ETAPAS,
+  DESTINOS_DUENIO,
+} from '../core/constants.js';
 import { progresoProximoHito } from '../core/territorio.js';
 import { activosDelJugador } from '../core/mercado.js';
 import { nombreRivalCompleto } from '../data/nombres.js';
 import { GLOSARIO_STATS, GLOSARIO_CONTADORES, GLOSARIO_VINCULOS } from '../data/glosario.js';
 import { etiquetaCamino } from '../core/camino.js';
+import { etiquetaNegocio } from '../core/negocio.js';
 import { vistaHijo, vistaSocio } from '../core/vinculos.js';
 
 /** Flecha de tendencia contra el año anterior. */
@@ -239,6 +247,8 @@ export function Ficha({ estado, className = '' }) {
   const previo = estado.historial[estado.historial.length - 1];
   const deltaDe = (stat) => (previo ? estado.stats[stat] - previo.stats[stat] : 0);
   const camino = etiquetaCamino(estado);
+  // De los 23 en adelante: en qué se fue convirtiendo.
+  const negocio = etiquetaNegocio(estado);
 
   return (
     <Panel className={`textura-asfalto min-w-0 space-y-5 ${className}`}>
@@ -270,6 +280,14 @@ export function Ficha({ estado, className = '' }) {
                   {camino.reconvertido ? ' ↩' : ''}
                 </span>
                 <InfoTip info={GLOSARIO_VINCULOS.camino} />
+              </Chip>
+            )}
+            {negocio && (
+              <Chip color="humo" className="max-w-full min-w-0">
+                <span className="min-w-0 truncate" title={negocio.desc}>
+                  {negocio.icono} {negocio.label}
+                </span>
+                <InfoTip info={GLOSARIO_VINCULOS.negocio} />
               </Chip>
             )}
           </div>
@@ -346,11 +364,49 @@ export function Ficha({ estado, className = '' }) {
       {estado.territorios.length > 0 && (
         <div>
           <Titulo>Territorios</Titulo>
+          <ul className="mt-2 space-y-2">
+            {estado.territorios.map((t) => {
+              // Cuántos años faltan para tener que volver a bancarlo. Se
+              // muestra porque perderlo es una posibilidad real y el jugador
+              // tiene que poder verla venir.
+              const faltan = (t.proximoMantenimiento ?? 0) - estado.anio;
+              const vence = t.nivel !== 4 && faltan <= 1;
+              const dest = t.duenio?.destino ? DESTINOS_DUENIO[t.duenio.destino] : null;
+              return (
+                <li key={`${t.nivel}-${t.nombre}`} className="text-xs">
+                  <div className="flex justify-between gap-2">
+                    <span className="min-w-0 truncate text-dorado">👑 {t.nombre}</span>
+                    <span className="shrink-0 text-humo-tenue">a los {t.edad}</span>
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px]">
+                    {t.nivel !== 4 && (
+                      <span className={vence ? 'font-semibold text-rojo' : 'text-humo-tenue'}>
+                        {faltan <= 0
+                          ? '⚠️ hay que ir a bancarlo'
+                          : `se afloja en ${faltan} ${faltan === 1 ? 'año' : 'años'}`}
+                      </span>
+                    )}
+                    {dest && (
+                      <span className="text-humo-tenue">
+                        {dest.icono} {t.duenio.nombre}: {dest.label.toLowerCase()}
+                      </span>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {estado.territoriosPerdidos?.length > 0 && (
+        <div>
+          <Titulo>Lo que se te cayó</Titulo>
           <ul className="mt-2 space-y-1">
-            {estado.territorios.map((t) => (
-              <li key={`${t.nivel}-${t.nombre}`} className="flex justify-between gap-2 text-xs">
-                <span className="min-w-0 truncate text-dorado">👑 {t.nombre}</span>
-                <span className="shrink-0 text-humo-tenue">a los {t.edad}</span>
+            {estado.territoriosPerdidos.map((t, i) => (
+              <li key={i} className="flex justify-between gap-2 text-xs">
+                <span className="min-w-0 truncate text-humo-tenue line-through">{t.nombre}</span>
+                <span className="shrink-0 text-rojo/70">a los {t.perdidoALos}</span>
               </li>
             ))}
           </ul>

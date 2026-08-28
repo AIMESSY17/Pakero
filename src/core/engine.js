@@ -1,4 +1,4 @@
-import { rndInt, rndPonderado, chance } from './rng.js';
+import { rndInt, rndPonderado, chance, barajar } from './rng.js';
 import { TODOS_LOS_EVENTOS, POOL_CRISIS, POOL_ESPECIALES, especialesDe } from '../data/eventos/index.js';
 import { ingresoAnual, notaAnio, comentarioNota } from './formulas.js';
 import { resolverTirada, bonusDeMinijuego, probabilidadFinal } from './tirada.js';
@@ -11,6 +11,15 @@ import {
   probConquista,
   progresoProximoHito,
   empujarHito,
+  estaCerca,
+  puntosParaHito,
+  resolverDuenio,
+  bonusMantenimiento,
+  territorioAMantener,
+  reprogramarMantenimiento,
+  perderTerritorio,
+  parDeTerritorios,
+  flavorDeLugar,
 } from './territorio.js';
 import { NIVEL_TERRITORIO } from '../data/lugares.js';
 import { ctxTexto, resolverTexto } from './texto.js';
@@ -38,12 +47,19 @@ import {
   vistaSocio,
 } from './vinculos.js';
 import { recordar, resurgir } from './memoria.js';
+import { elegirCliffhanger } from './cliffhanger.js';
+import { registrarNegocio, pesoPorAfinidad, etiquetaNegocio, vistaNegocio } from './negocio.js';
 import {
   SLOTS_AUTOMATICOS,
+  AUTOMATICOS_MIN,
+  AUTOMATICOS_MAX,
+  MULT_AUTOMATICO,
   ATENCION_PRESO_AUTOMATICO,
   ATENCION_ZONA_ROJA,
   PROB_PRESO_ZONA_ROJA,
   RIESGO_META,
+  MULT_ATENCION_RIESGO,
+  ATENCION_ENFRIAMIENTO_ANUAL,
   RIESGOS_FISICOS_BLOQUEABLES,
   UMBRAL_SALUD_BAJA,
   EDAD_MAXIMA,
@@ -66,6 +82,10 @@ import {
   BISAGRA_EDAD_MIN,
   BISAGRA_UMBRAL_TERRITORIO,
   MAX_ESPECIALES_POR_ANIO,
+  PROB_ACERCAMIENTO,
+  TENSION_MIN_TERRITORIOS,
+  PROB_TENSION_TERRITORIOS,
+  EDAD_FIN_EVENTOS_ESTUDIO,
 } from './constants.js';
 
 // ---------------------------------------------------------------------------
@@ -153,13 +173,19 @@ export function notaSocio(delta, nombre) {
 function poolDelAnio(estado) {
   const camino = estado.camino?.elegido ?? null;
   const sub = estado.camino?.subVariante ?? null;
+  // A los 23 la facultad se termina. Los eventos del camino "estudiar" —la
+  // cursada, los parciales, las dos sub-variantes— salen del pool para todos,
+  // hayan estudiado o no: a los 30 nadie sigue rindiendo el primer final. Su
+  // lugar lo ocupan los eventos de negocio, que arrancan a esa misma edad.
+  const seAcaboLaFacultad = estado.edad >= EDAD_FIN_EVENTOS_ESTUDIO;
   return TODOS_LOS_EVENTOS.filter(
     (ev) =>
       ev.etapa === estado.etapa &&
       estado.edad >= ev.edad_min &&
       estado.edad <= ev.edad_max &&
       (ev.camino == null || ev.camino === camino) &&
-      (ev.sub == null || ev.sub === sub)
+      (ev.sub == null || ev.sub === sub) &&
+      !(seAcaboLaFacultad && ev.camino === 'estudiar')
   );
 }
 
@@ -168,7 +194,15 @@ function elegirSinRepetir(estado, candidatos) {
   if (candidatos.length === 0) return null;
   const vistos = new Set(estado.eventosVistos);
   const frescos = candidatos.filter((e) => !vistos.has(e.id));
-  const elegido = rndPonderado(estado.rng, frescos.length ? frescos : candidatos);
+  // El peso de cada evento se inclina por la afinidad de negocio que el
+  // jugador viene construyendo. El multiplicador NUNCA baja de 1, asi que
+  // ningun evento queda excluido: los de su palo salen mas seguido, el resto
+  // sigue saliendo. Inclinar, no rutear.
+  const elegido = rndPonderado(
+    estado.rng,
+    frescos.length ? frescos : candidatos,
+    (ev) => (ev.peso ?? 1) * pesoPorAfinidad(estado, ev)
+  );
   if (elegido) {
     if (!frescos.length) {
       // Se agotó el pool de esa categoría: se limpia para volver a empezar.
@@ -277,21 +311,105 @@ function especialesDelAnio(estado) {
     sumar(especialesDe('segunda_chance')[0]);
   }
 
+  // --- Territorio -----------------------------------------------------------
+  // Se arma `focoTerritorio` como efecto de esta funcion: es el contexto que
+  // despues leen los textos de esos eventos (ver core/texto.js).
+
+  // 1. Mantenimiento. Va primero de los tres porque es el unico que te puede
+  //    SACAR algo: un territorio vencido que no se atiende se pierde.
+  const aMantener = territorioAMantener(estado);
+  if (aMantener) {
+    const ev = especialesDe('mantenimiento')[0];
+    if (ev) {
+      estado.focoTerritorio = {
+        lugar: aMantener.nombre,
+        aniosDesde: estado.anio - (aMantener.anio ?? estado.anio),
+        flavor: flavorDeLugar(estado, aMantener.nombre),
+      };
+      sumar(ev);
+    }
+  }
+
+  // 2. Tension entre territorios: solo con dos o mas al mismo tiempo.
+  if (
+    estado.territorios.length >= TENSION_MIN_TERRITORIOS &&
+    chance(estado.rng, PROB_TENSION_TERRITORIOS)
+  ) {
+    const par = parDeTerritorios(estado);
+    const ev = especialesDe('tension_terr')[0];
+    if (par && ev) {
+      estado.focoTerritorio = {
+        ...(estado.focoTerritorio ?? {}),
+        a: par.a.nombre,
+        b: par.b.nombre,
+      };
+      sumar(ev);
+    }
+  }
+
+  // 3. Acercamiento: te faltan entre 1 y 9 puntos para el proximo umbral.
+  //    Uno por nivel, no todos los años: si no, la antesala se vuelve rutina.
+  if (estaCerca(estado)) {
+    const hito = puntosParaHito(estado);
+    const cands = especialesDe('acercamiento').filter(
+      (e) => !yaJugado(estado, `${e.id}:n${hito.nivel}`)
+    );
+    if (cands.length && chance(estado.rng, PROB_ACERCAMIENTO)) {
+      const ev = rndPonderado(estado.rng, cands);
+      if (ev) {
+        estado.focoTerritorio = {
+          ...(estado.focoTerritorio ?? {}),
+          hito,
+          flavor: estado.focoTerritorio?.flavor ?? null,
+        };
+        // Se marca con el nivel: el mismo evento puede volver para otro hito.
+        (estado.especialesJugados ??= []).push(`${ev.id}:n${hito.nivel}`);
+        sumar(ev);
+      }
+    }
+  }
+
   // Bisagra del lustro (puede venir enganchada al hito de Territorio).
   if (esAnioBisagra(estado)) sumar(bisagraDelAnio(estado));
 
   return salida;
 }
 
+/** Estado de ejecucion de un evento dentro del año. */
+function nuevoRuntime(id) {
+  return {
+    id,
+    resuelto: false,
+    grado: null,
+    opcionIdx: null,
+    texto: null,
+    deltas: null,
+    guita: 0,
+    prob: null,
+    minijuego: null,
+    bonusMinijuego: 0,
+    hijo: 0,
+    notaSocio: null,
+  };
+}
+
 /**
- * Arma el año: 3 automáticos (Calle / Fama / Maña-o-Atención) + 1 con decisión
- * + los especiales que toquen + crisis si viene mala racha.
+ * Arma el año: 1 o 2 automáticos (sorteados) + 1 con decisión + los especiales
+ * que toquen + crisis si viene mala racha.
  */
 export function construirAnio(estado) {
   const pool = poolDelAnio(estado);
   const ids = [];
 
-  for (const slot of SLOTS_AUTOMATICOS) {
+  // El foco de Territorio se arma de cero cada año: lo llena
+  // `especialesDelAnio` si toca alguno de esos eventos.
+  estado.focoTerritorio = null;
+
+  // 1 o 2 automaticos, sorteando cuales de los tres slots. Antes iban los tres
+  // todos los años: eso hacia que el año arrancara con tres pantallas de
+  // "Continuar" antes de la primera decision real.
+  const cuantos = rndInt(estado.rng, AUTOMATICOS_MIN, AUTOMATICOS_MAX);
+  for (const slot of barajar(estado.rng, SLOTS_AUTOMATICOS).slice(0, cuantos)) {
     const cands = pool.filter((e) => e.tipo === 'automatico' && e.slot === slot);
     const ev = elegirSinRepetir(estado, cands);
     if (ev) ids.push(ev.id);
@@ -339,20 +457,7 @@ export function construirAnio(estado) {
   }
 
   estado.anioActual = {
-    eventos: ids.map((id) => ({
-      id,
-      resuelto: false,
-      grado: null,
-      opcionIdx: null,
-      texto: null,
-      deltas: null,
-      guita: 0,
-      prob: null,
-      minijuego: null,
-      bonusMinijuego: 0,
-      hijo: 0,
-      notaSocio: null,
-    })),
+    eventos: ids.map(nuevoRuntime),
     indice: 0,
     grados: [],
     log: [],
@@ -389,7 +494,13 @@ function asegurarAplicado(estado) {
   if (def.tipo !== 'automatico') return;
 
   const ctx = ctxTexto(estado);
-  const deltas = aplicarStats(estado, def.stats);
+  // x2 porque ahora salen 1-2 automaticos por año en vez de 3 (ver
+  // MULT_AUTOMATICO en constants.js: es una compensacion de balance, no un
+  // buff). Se escala el delta declarado, no el resultado, asi que el
+  // rendimiento decreciente sigue aplicando encima como siempre.
+  const escalados = {};
+  for (const [k, v] of Object.entries(def.stats ?? {})) escalados[k] = v * MULT_AUTOMATICO;
+  const deltas = aplicarStats(estado, escalados);
   registrarEstudio(estado, def);
   runtime.resuelto = true;
   runtime.deltas = deltas;
@@ -436,8 +547,13 @@ export function inspeccionarOpcion(estado, def, opcion) {
   const mods = calcularMods(estado);
   // Lo que la cabeza que hiciste en el secundario le suma a esta opción.
   const extraEstudio = opcion.usaEstudio ? bonusEstudio(estado) : 0;
+  const extraDuenio = opcion.efecto?.mantener ? bonusMantenimiento(territorioEnFoco(estado)) : 0;
   return {
     bloqueada: opcionBloqueada(estado, opcion),
+    // Lo que pesa hoy la decision que tomaste con el dueño anterior de ESTE
+    // territorio. Se muestra: es la consecuencia volviendo, y tiene que verse.
+    bonusDuenio: extraDuenio ? Math.round(extraDuenio * 100) : 0,
+    duenioDestino: territorioEnFoco(estado)?.duenio?.destino ?? null,
     motivoBloqueo: motivoBloqueo(estado, opcion),
     riesgo: RIESGO_META[opcion.riesgo],
     minijuego: opcion.minijuego,
@@ -455,12 +571,19 @@ export function inspeccionarOpcion(estado, def, opcion) {
             probBase: opcion.prob_base,
             categoria: def.categoria,
             stats: estado.stats,
-            bonusMinijuego: extraEstudio,
+            bonusMinijuego: extraEstudio + extraDuenio,
             mods,
           }) * 100
         )
       : null,
   };
+}
+
+/** El territorio del que habla el evento de este año, buscado por nombre. */
+function territorioEnFoco(estado) {
+  const nombre = estado.focoTerritorio?.lugar;
+  if (!nombre) return null;
+  return estado.territorios.find((t) => t.nombre === nombre) ?? null;
 }
 
 /**
@@ -487,6 +610,25 @@ function aplicarEfecto(estado, efecto, grado) {
   }
 
   if (efecto.empujeTerritorio) empujarHito(estado, grado);
+
+  // --- Territorio ---
+  if (efecto.duenio && estado.pendienteDuenio) {
+    resolverDuenio(estado, estado.pendienteDuenio, efecto.duenio);
+    estado.pendienteDuenio = null;
+  }
+
+  // Perder el territorio va ANTES de reprogramar: no tiene sentido agendarle
+  // el proximo mantenimiento a un lugar que se acaba de caer.
+  if (efecto.perderTerritorio?.includes(grado)) {
+    const perdido = perderTerritorio(estado, estado.focoTerritorio?.lugar ?? null);
+    if (perdido && estado.anioActual) estado.anioActual.territorioPerdido = perdido.nombre;
+  }
+
+  if (efecto.mantener) {
+    const nombre = estado.focoTerritorio?.lugar;
+    const terr = estado.territorios.find((t) => t.nombre === nombre);
+    if (terr) reprogramarMantenimiento(estado, terr);
+  }
 }
 
 /**
@@ -504,12 +646,15 @@ export function elegirOpcion(estado, opcionIdx, scoreMinijuego = null) {
   const mods = calcularMods(estado);
   const bonusMj = scoreMinijuego == null ? 0 : bonusDeMinijuego(scoreMinijuego);
   const bonusEst = opcion.usaEstudio ? bonusEstudio(estado) : 0;
+  // Lo que dejo el dueño anterior: bancar un territorio donde lo sumaste es
+  // mas facil, y donde lo humillaste es mas dificil. Para siempre.
+  const bonusDue = opcion.efecto?.mantener ? bonusMantenimiento(territorioEnFoco(estado)) : 0;
 
   const { grado, prob } = resolverTirada(estado.rng, {
     probBase: opcion.prob_base,
     categoria: def.categoria,
     stats: estado.stats,
-    bonusMinijuego: bonusMj + bonusEst,
+    bonusMinijuego: bonusMj + bonusEst + bonusDue,
     mods,
   });
 
@@ -523,7 +668,9 @@ export function elegirOpcion(estado, opcionIdx, scoreMinijuego = null) {
 
   // Atención extra por el nivel de riesgo, aparte de lo que diga el resultado.
   const atencionRiesgo = Math.round(
-    (RIESGO_META[opcion.riesgo]?.atencion ?? 0) * (1 - (mods.reduceAtencionRiesgo ?? 0))
+    (RIESGO_META[opcion.riesgo]?.atencion ?? 0) *
+      MULT_ATENCION_RIESGO *
+      (1 - (mods.reduceAtencionRiesgo ?? 0))
   );
   if (atencionRiesgo) {
     const d = aplicarStats(estado, { atencion: atencionRiesgo });
@@ -536,6 +683,11 @@ export function elegirOpcion(estado, opcionIdx, scoreMinijuego = null) {
   estado.movidas += res.movidas ?? 0;
 
   registrarEstudio(estado, res);
+  // En que se va convirtiendo. Lo define la OPCION que eligio, no el resultado:
+  // meterse en finanzas te hace de finanzas aunque salga mal.
+  const dNegocio = opcion.negocio
+    ? registrarNegocio(estado, opcion.negocio, resolverTexto(def.titulo, ctx))
+    : 0;
 
   // Vínculos: el hijo tiene número, el socio tiene frase.
   const dHijo = res.hijo ? moverHijo(estado, res.hijo, resolverTexto(def.titulo, ctx)) : 0;
@@ -564,6 +716,9 @@ export function elegirOpcion(estado, opcionIdx, scoreMinijuego = null) {
   runtime.minijuego = opcion.minijuego;
   runtime.bonusMinijuego = bonusMj;
   runtime.bonusEstudio = bonusEst;
+  runtime.bonusDuenio = bonusDue;
+  runtime.negocio = opcion.negocio ?? null;
+  runtime.negocioPuntos = dNegocio;
   runtime.hijo = dHijo;
   runtime.notaSocio = nota;
 
@@ -647,6 +802,11 @@ export function continuar(estado) {
   }
 
   // Se terminaron los eventos: ¿hay territorio para conquistar?
+  // Si ya se conquisto uno este año, no se encadena otro: despues del evento
+  // del dueño anterior se vuelve a pasar por aca, y sin este guard el jugador
+  // podia conquistar dos niveles seguidos en el mismo año sin haber jugado
+  // nada en el medio.
+  if (a.conquistaHecha) return cerrarAnio(estado);
   const nivel = nivelDisponible(estado);
   if (nivel) {
     estado.pendienteConquista = {
@@ -669,6 +829,7 @@ export function jugarConquista(estado, scoreMinijuego = null) {
   if (!p || p.resultado) return estado;
   const bonus = scoreMinijuego == null ? 0 : bonusDeMinijuego(scoreMinijuego);
   p.resultado = resolverConquista(estado, p.nivel, bonus, calcularMods(estado));
+  if (p.resultado.gano && estado.anioActual) estado.anioActual.conquistaHecha = true;
   if (!p.resultado.gano) recordar(estado, 'conquista_fallida', p.meta?.label);
   estado.anioActual?.log.push({
     titulo: p.resultado.gano ? `Conquistaste ${p.resultado.lugar.nombre}` : 'Conquista fallida',
@@ -690,10 +851,32 @@ export function cerrarConquista(estado) {
   const p = estado.pendienteConquista;
   const gano = p?.resultado?.gano;
   const nivel = p?.nivel;
+  const duenio = p?.resultado?.duenio ?? null;
   estado.pendienteConquista = null;
   if (estado.final) return estado;
   // El Picantillo de Oro cierra la partida al toque: no hay nada más arriba.
   if (gano && nivel === 4) return terminar(estado, 'picantillo');
+
+  // Conquistaste y quedó un tipo sentado esperando que decidas qué hacés con
+  // él. Se empalma como un evento más del año en vez de inventar una fase
+  // nueva: así pasa por el mismo `elegirOpcion` que todo lo demás.
+  if (gano && duenio && estado.anioActual) {
+    const ev = especialesDe('duenio')[0];
+    if (ev) {
+      estado.pendienteDuenio = duenio;
+      estado.focoTerritorio = {
+        ...(estado.focoTerritorio ?? {}),
+        duenio,
+        lugar: duenio.territorio,
+      };
+      const a = estado.anioActual;
+      a.eventos.push(nuevoRuntime(ev.id));
+      a.indice = a.eventos.length - 1;
+      a.idsEspeciales = [...(a.idsEspeciales ?? []), ev.id];
+      estado.fase = 'evento';
+      return estado;
+    }
+  }
   return cerrarAnio(estado);
 }
 
@@ -818,6 +1001,10 @@ export function cerrarAnio(estado) {
     huboVenta: a.huboVenta,
     // Lo nuevo del resumen: la decisión arriba de todo, y al lado de la
     // comparación con el Rival, cómo quedaron el hijo y el socio.
+    // Territorio: lo que paso este año con lo que ya es tuyo.
+    conquistoEsteAnio: !!a.conquistaHecha,
+    territorioPerdido: a.territorioPerdido ?? null,
+    territorios: estado.territorios.length,
     decision: decisionDelAnio(estado),
     hijo: hijo && {
       ...hijo,
@@ -826,8 +1013,46 @@ export function cerrarAnio(estado) {
     },
     socio: vistaSocio(estado),
     camino: etiquetaCamino(estado),
+    negocio: etiquetaNegocio(estado),
     ecos: a.ecos ?? [],
   };
+
+  // El cliffhanger va SIEMPRE, sin excepción: un año que cierra con la nota y
+  // nada más se lee como un balance contable. Se calcula último, cuando el
+  // resumen ya tiene todo, porque mira el año entero para elegir.
+  estado.resumen.cliffhanger = elegirCliffhanger(estado, {
+    edad: estado.edad,
+    anio: estado.anio,
+    nota,
+    comentario: estado.resumen.comentario,
+    ingreso,
+    ingresoPrevio,
+    tendencia: estado.resumen.tendenciaIngreso,
+    guita: estado.guita,
+    stats: estado.stats,
+    crisis: a.crisis,
+    ventas: estado.ventas,
+    movidas: estado.movidas,
+    ventasAnio: estado.resumen.ventasAnio,
+    movidasAnio,
+    rival: estado.rival,
+    diferencia: estado.ventas - estado.rival.ventas,
+    duelo:
+      estado.ventas > estado.rival.ventas
+        ? 'gano'
+        : estado.ventas === estado.rival.ventas
+          ? 'empate'
+          : 'perdio',
+    territorios: estado.territorios.length,
+    conquistoEsteAnio: !!a.conquistaHecha,
+    perdioEsteAnio: a.territorioPerdido ?? null,
+    cercaDelHito: estaCerca(estado),
+    hijo,
+    socio: vistaSocio(estado),
+    camino: etiquetaCamino(estado),
+    duenios: estado.duenios ?? [],
+    huboEco: (a.ecos ?? []).length > 0,
+  });
 
   estado.fase = 'resumen';
   return estado;
@@ -849,6 +1074,15 @@ export function siguienteAnio(estado) {
   if (Object.keys(staffDeltas).length) {
     const d = aplicarStats(estado, staffDeltas);
     if (Object.keys(d).length) avisos.push({ titulo: 'Tu gente laburando', lineas: lineasDeDeltas(d) });
+  }
+
+  // La Atencion se enfria sola un poco cada año: lo que no alimentas, se apaga.
+  const dEnfriamiento = aplicarStats(estado, { atencion: ATENCION_ENFRIAMIENTO_ANUAL });
+  if (dEnfriamiento.atencion) {
+    avisos.push({
+      titulo: 'Pasó el tiempo',
+      lineas: lineasDeDeltas(dEnfriamiento),
+    });
   }
 
   // Crecimiento pasivo: hasta los 29 sube uno solo de los tres (+1/+2),

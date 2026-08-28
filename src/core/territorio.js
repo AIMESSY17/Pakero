@@ -1,4 +1,7 @@
-import { rnd, rndElem, rndInt, barajar } from './rng.js';
+import { rnd, rndElem, rndInt, barajar, rndPonderado } from './rng.js';
+import { ARQUETIPOS_DUENIO } from '../data/duenios.js';
+import { NOMBRES_VILLEROS, APODOS } from '../data/nombres.js';
+import { flavorDe } from '../data/flavor.js';
 import {
   VILLAS,
   PROVINCIAS,
@@ -12,6 +15,10 @@ import {
 import {
   PROB_CONQUISTA_ORIGEN,
   PROB_CONQUISTA_FORASTERO,
+  ACERCAMIENTO_PUNTOS_MIN,
+  ACERCAMIENTO_PUNTOS_MAX,
+  MANTENIMIENTO_CADA_MIN,
+  MANTENIMIENTO_CADA_MAX,
   clamp,
   clampStat,
   factorRendimiento,
@@ -100,6 +107,12 @@ export function resolverConquista(estado, nivel, bonusMinijuego = 0, mods = {}) 
       tipo: lugar.tipo,
       nombre: lugar.nombre,
       edad: estado.edad,
+      anio: estado.anio,
+      // Cuando toca volver a bancarlo. Se sortea por territorio para que no
+      // venzan todos el mismo año.
+      proximoMantenimiento:
+        estado.anio + rndInt(estado.rng, MANTENIMIENTO_CADA_MIN, MANTENIMIENTO_CADA_MAX),
+      duenio: null, // lo llena el evento del dueño anterior
     });
     // Recompensa de conquista, con el mismo freno de rendimiento decreciente
     // que el resto de las subidas.
@@ -107,12 +120,24 @@ export function resolverConquista(estado, nivel, bonusMinijuego = 0, mods = {}) 
     const subeCalle = Math.round((2 + nivel) * factorRendimiento(estado.stats.calle));
     estado.stats.fama = clampStat(estado.stats.fama + subeFama);
     estado.stats.calle = clampStat(estado.stats.calle + subeCalle);
+    // El Picantillo es la corona, no un lugar con gente adentro: no tiene
+    // dueño anterior al que haya que mirar a la cara.
+    const duenio = nivel === 4 ? null : crearDuenio(estado, lugar, nivel);
+    const flavor = flavorDe(lugar.nombre, estado.rng, rndElem);
+
     return {
       gano: true,
       nivel,
       lugar,
       prob: p,
-      texto: `${lugar.nombre} es tuyo. ${NIVEL_TERRITORIO[nivel].descripcion}`,
+      duenio,
+      flavor,
+      // "es tuyo" no sirve: los lugares tienen genero (La Matanza, La Cava,
+      // Ciudad Oculta son femeninos) y el motor no lo sabe. "Ahora mandas en"
+      // funciona para todos.
+      texto:
+        `Ahora mandás en ${lugar.nombre}. ${NIVEL_TERRITORIO[nivel].descripcion}` +
+        (flavor ? ` ${flavor}` : ''),
     };
   }
 
@@ -180,6 +205,156 @@ export function empujarHito(estado, grado) {
   }
 
   return { nivel, deltas: aplicados, guita };
+}
+
+// ---------------------------------------------------------------------------
+// El dueño anterior
+// ---------------------------------------------------------------------------
+
+/**
+ * Genera al tipo que manejaba esto antes que vos. Se llama al conquistar y el
+ * evento del dueño (ver data/eventos/territorio.js) decide qué se hace con él.
+ */
+export function crearDuenio(estado, lugar, nivel) {
+  const arq = rndPonderado(estado.rng, ARQUETIPOS_DUENIO);
+  return {
+    nombre: rndElem(estado.rng, NOMBRES_VILLEROS),
+    apodo: rndElem(estado.rng, APODOS),
+    arquetipo: arq.id,
+    arquetipoLabel: arq.label,
+    presentacion: arq.presentacion,
+    territorio: lugar.nombre,
+    nivel,
+    edad: estado.edad,
+    // 'libre' | 'humillado' | 'aliado'. Null hasta que el jugador decide.
+    destino: null,
+  };
+}
+
+export const nombreDuenio = (d) => (d ? `${d.nombre} "${d.apodo}"` : '');
+
+/** Anota qué se hizo con el dueño y lo pega al territorio correspondiente. */
+export function resolverDuenio(estado, duenio, destino) {
+  const marcado = { ...duenio, destino };
+  (estado.duenios ??= []).push(marcado);
+  const terr = estado.territorios.find((t) => t.nombre === duenio.territorio);
+  if (terr) terr.duenio = marcado;
+  return marcado;
+}
+
+/**
+ * Lo que el dueño anterior le suma o le resta a la chance de bancar ESE
+ * territorio, para siempre. Es la consecuencia mecánica de las tres opciones:
+ * un tipo al que humillaste tiene tiempo libre y bronca, y uno al que sumaste
+ * conoce cada pasillo.
+ */
+export const BONUS_MANTENIMIENTO_DUENIO = { aliado: 0.15, libre: 0, humillado: -0.15 };
+
+export function bonusMantenimiento(territorio) {
+  return BONUS_MANTENIMIENTO_DUENIO[territorio?.duenio?.destino] ?? 0;
+}
+
+// ---------------------------------------------------------------------------
+// Acercamiento: cuando te falta poco
+// ---------------------------------------------------------------------------
+
+/**
+ * Cuántos puntos de stat te faltan para el próximo umbral. Devuelve null si ya
+ * están los cuatro territorios o si el umbral ya está cumplido.
+ *
+ * Solo cuenta stats: la guita del nivel 3 se mira aparte, porque juntar plata
+ * no es lo mismo que estar a un paso — y "a 1-9 puntos" habla de puntos.
+ */
+export function puntosParaHito(estado) {
+  const nivel = estado.territorios.length + 1;
+  if (nivel > 4) return null;
+  const umbral = UMBRALES_TERRITORIO[nivel];
+  if (umbral.cumple(estado.stats, estado.guita)) return null;
+  const hueco = umbral.falta?.(estado.stats, estado.guita);
+  if (!hueco) return null;
+  const puntos = Object.values(hueco.stats).reduce((a, b) => a + b, 0);
+  return { nivel, puntos, guitaFaltante: hueco.guita ?? 0 };
+}
+
+/** ¿Está en la ventana de "le falta poco" (1 a 9 puntos)? */
+export function estaCerca(estado) {
+  const p = puntosParaHito(estado);
+  return (
+    !!p && p.puntos >= ACERCAMIENTO_PUNTOS_MIN && p.puntos <= ACERCAMIENTO_PUNTOS_MAX
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Mantenimiento: bancar lo que ya es tuyo
+// ---------------------------------------------------------------------------
+
+/**
+ * El territorio al que le toca mantenimiento este año, o null.
+ *
+ * Conquistar dejó de ser un logro que se cobra solo para siempre: cada 2 o 3
+ * años hay que volver a bancar cada lugar, y se puede perder.
+ */
+export function territorioAMantener(estado) {
+  const vencidos = estado.territorios.filter(
+    (t) => t.nivel !== 4 && (t.proximoMantenimiento ?? 0) <= estado.anio
+  );
+  if (!vencidos.length) return null;
+  // El más atrasado primero: si se acumularon dos, se atiende el que viene
+  // esperando hace más.
+  vencidos.sort((a, b) => (a.proximoMantenimiento ?? 0) - (b.proximoMantenimiento ?? 0));
+  return vencidos[0];
+}
+
+/** Reprograma el próximo mantenimiento de ese territorio. */
+export function reprogramarMantenimiento(estado, territorio) {
+  if (!territorio) return;
+  territorio.proximoMantenimiento =
+    estado.anio + rndInt(estado.rng, MANTENIMIENTO_CADA_MIN, MANTENIMIENTO_CADA_MAX);
+}
+
+/**
+ * Se te cayó un territorio. Devuelve el que se perdió, o null.
+ *
+ * Ojo con el orden: los territorios se conquistan por nivel y `nivelDisponible`
+ * usa `territorios.length`, así que perder el del medio dejaría un agujero.
+ * Por eso siempre se cae el de nivel MÁS ALTO: lo último que ganaste es lo
+ * primero que se va, y la escalera queda entera.
+ */
+export function perderTerritorio(estado, nombre = null) {
+  if (!estado.territorios.length) return null;
+  let idx;
+  if (nombre) {
+    idx = estado.territorios.findIndex((t) => t.nombre === nombre);
+    if (idx === -1) return null;
+    // Aunque venga pedido por nombre, se cae el de nivel más alto para no
+    // romper la escalera de niveles.
+    const nivelMax = Math.max(...estado.territorios.map((t) => t.nivel));
+    if (estado.territorios[idx].nivel !== nivelMax) {
+      idx = estado.territorios.findIndex((t) => t.nivel === nivelMax);
+    }
+  } else {
+    const nivelMax = Math.max(...estado.territorios.map((t) => t.nivel));
+    idx = estado.territorios.findIndex((t) => t.nivel === nivelMax);
+  }
+  const [perdido] = estado.territorios.splice(idx, 1);
+  (estado.territoriosPerdidos ??= []).push({ ...perdido, perdidoALos: estado.edad });
+  return perdido;
+}
+
+// ---------------------------------------------------------------------------
+// Tensión entre territorios
+// ---------------------------------------------------------------------------
+
+/** Dos territorios al azar para el evento de roce. Null si no hay al menos dos. */
+export function parDeTerritorios(estado) {
+  if (estado.territorios.length < 2) return null;
+  const mezclado = barajar(estado.rng, estado.territorios);
+  return { a: mezclado[0], b: mezclado[1] };
+}
+
+/** Una línea de color del lugar, para los eventos que lo nombran. */
+export function flavorDeLugar(estado, nombre) {
+  return flavorDe(nombre, estado.rng, rndElem);
 }
 
 /** Todos los destinos a los que se puede mudar (desde los 18). */

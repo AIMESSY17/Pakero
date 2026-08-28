@@ -32,9 +32,32 @@ export function etapaPorEdad(edad) {
 }
 
 // --- Estructura del año ---
-// 3 automaticos (uno Calle, uno Fama, uno Maña-o-baja-Atencion) + 1 con decision.
+// 1 o 2 automaticos (sorteados entre los tres slots) + SIEMPRE 1 con decision.
+//
+// Antes eran los tres slots todos los años. Tres automaticos seguidos antes de
+// la unica decision hacian que el año se sintiera un tramite: el jugador
+// apretaba "Continuar" tres veces para recien despues jugar. Con uno o dos, y
+// sorteando cuales, el año arranca mas rapido y ademas no siempre sube lo
+// mismo — que los stats crezcan parejo todos los años era parte del problema.
 export const SLOTS_AUTOMATICOS = ['calle', 'fama', 'mana_atencion'];
+export const AUTOMATICOS_MIN = 1;
+export const AUTOMATICOS_MAX = 2;
 export const EVENTOS_DECISION_POR_ANIO = 1;
+
+/**
+ * Compensacion por haber bajado de 3 automaticos fijos a 1-2 sorteados.
+ *
+ * Sin esto el recorte de ritmo es tambien un recorte de balance encubierto: en
+ * 400 partidas simuladas la edad final se caia de 26,4 a 22,5, los territorios
+ * de 2,0 a 0,97 y "El Preso" pasaba del 30% al 56%. El culpable principal era
+ * el slot `mana_atencion`, que es por donde BAJA la Atencion: al salir la mitad
+ * de las veces, la Atencion subia sin freno y todos terminaban presos.
+ *
+ * Con x2 sobre ~1,5 eventos por año se recupera el rinde de los 3 de antes.
+ * Aplica a los deltas positivos y a los negativos por igual, asi que el alivio
+ * de Atencion se compensa en la misma proporcion que las subidas.
+ */
+export const MULT_AUTOMATICO = 2;
 
 // --- Economia ---
 export const GUITA_INICIAL = 5000;
@@ -108,6 +131,37 @@ export const RIESGO_META = {
 };
 /** Riesgos que se bloquean con Salud baja si la opcion pide esfuerzo fisico. */
 export const RIESGOS_FISICOS_BLOQUEABLES = ['alto', 'extremo'];
+
+/**
+ * Reescalado de la Atencion que suma el nivel de riesgo.
+ *
+ * La tabla de arriba estaba tuneada para un año de ~1,2 eventos con decision.
+ * Con los especiales de Territorio (acercamiento, dueño, mantenimiento,
+ * tension) el año pasó a ~1,7 decisiones, y cada una cobra Atencion por
+ * riesgo: en 250 partidas simuladas el 100% terminaba preso y la Atencion
+ * promedio a los 20 años era 52.
+ *
+ * El arreglo correcto no es sacar contenido: es que cada decision cobre menos,
+ * porque ahora hay mas decisiones. 1 / 1,7 ≈ 0,6. Los valores de `RIESGO_META`
+ * quedan como estan para que se sigan leyendo comparativamente entre si.
+ */
+export const MULT_ATENCION_RIESGO = 0.6;
+
+/**
+ * Enfriamiento anual de la Atencion: las causas viejas se enfrian solas.
+ *
+ * Hasta ahora la Atencion era un contador que SOLO subia, y el unico freno era
+ * que te tocara un evento automatico del slot `mana_atencion` de los que la
+ * bajan. Con los tres slots fijos eso pasaba una vez cada dos años y alcanzaba;
+ * con 1-2 sorteados pasa una vez cada cuatro y no alcanza. En 250 partidas
+ * simuladas el 100% terminaba preso, siempre, por acumulacion pura.
+ *
+ * Un regulador que dependa del sorteo de slots es un regulador roto. Este es
+ * pasivo y ademas es lo que pasa de verdad: si no le das de comer, la causa se
+ * enfria. Sigue siendo una amenaza real —se acumula mucho mas rapido de lo que
+ * baja— pero ya no es una cuenta regresiva inevitable.
+ */
+export const ATENCION_ENFRIAMIENTO_ANUAL = -3;
 
 // --- Tirada ---
 /** Reparto de la banda de exito: 20% criticazo, 55% exito, 25% exito con costo. */
@@ -264,9 +318,101 @@ export const BISAGRA_UMBRAL_TERRITORIO = 0.7;
 /** Techo de eventos especiales por año, sin contar la crisis. */
 export const MAX_ESPECIALES_POR_ANIO = 2;
 
+// ---------------------------------------------------------------------------
+// Territorio: la vida alrededor de la conquista
+// ---------------------------------------------------------------------------
+// Conquistar dejo de ser un boton que se aprieta una vez. Ahora hay tres capas
+// mas: el acercamiento (antes), el dueño anterior (durante) y el mantenimiento
+// (despues, para siempre).
+
+/** Ventana de "te falta poco": entre 1 y 9 puntos de stat para el umbral. */
+export const ACERCAMIENTO_PUNTOS_MIN = 1;
+export const ACERCAMIENTO_PUNTOS_MAX = 9;
+/** Un solo evento de acercamiento por nivel: no se repite todos los años. */
+export const PROB_ACERCAMIENTO = 0.75;
+
+/** Cada cuantos años hay que volver a bancar un territorio ya conquistado. */
+export const MANTENIMIENTO_CADA_MIN = 2;
+export const MANTENIMIENTO_CADA_MAX = 3;
+
+/** Con dos o mas territorios a la vez, empiezan a rozarse entre ellos. */
+export const TENSION_MIN_TERRITORIOS = 2;
+export const PROB_TENSION_TERRITORIOS = 0.4;
+
+/** Destinos posibles del dueño anterior, segun que hizo el jugador con el. */
+export const DESTINOS_DUENIO = {
+  libre: { id: 'libre', label: 'Lo dejaste ir', icono: '🚪', color: 'humo' },
+  humillado: { id: 'humillado', label: 'Lo humillaste', icono: '👞', color: 'rojo' },
+  aliado: { id: 'aliado', label: 'Lo sumaste', icono: '🤝', color: 'verde' },
+};
+
+// ---------------------------------------------------------------------------
+// Negocios: los caminos de la vida adulta (23+)
+// ---------------------------------------------------------------------------
+/**
+ * A los 23 la facultad se termina. Los eventos del camino "estudiar" salen del
+ * pool —hayas estudiado o no— y su lugar lo ocupan los eventos de negocio.
+ *
+ * Los eventos de negocio son el mecanismo por el que el personaje va definiendo
+ * en qué se convierte. NO son rutas: no bloquean nada ni desbloquean nada. Es
+ * un contador liviano de afinidad, igual que `puntosEstudio` en el Secundario,
+ * que solo inclina QUE TAN PROBABLE es que aparezca cada tipo de evento.
+ */
+export const EDAD_FIN_EVENTOS_ESTUDIO = 23;
+export const EDAD_NEGOCIOS = 23;
+
+export const AFINIDADES_NEGOCIO = {
+  comercio: {
+    id: 'comercio',
+    label: 'Comercio y logística',
+    icono: '🚚',
+    desc: 'Rutas, mercadería, distribución. Mover cosas de un lado a otro sin que se pierdan.',
+  },
+  finanzas: {
+    id: 'finanzas',
+    label: 'Finanzas y lavado',
+    icono: '🏦',
+    desc: 'Estructuras, contadores, blanqueo. Que la plata exista en los papeles.',
+  },
+  territorio: {
+    id: 'territorio',
+    label: 'Territorio y calle',
+    icono: '🧱',
+    desc: 'Control de zona y de gente. Lo de siempre, pero en serio.',
+  },
+  politica: {
+    id: 'politica',
+    label: 'Política y contactos',
+    icono: '🤵',
+    desc: 'Favores, despachos, gente que firma. El poder que no se ve.',
+  },
+  farandula: {
+    id: 'farandula',
+    label: 'Farándula y fama',
+    icono: '📸',
+    desc: 'Vida pública, auspicios, cámaras. Que tu nombre valga por sí solo.',
+  },
+};
+
+export const IDS_AFINIDAD_NEGOCIO = Object.keys(AFINIDADES_NEGOCIO);
+
+/** Lo que suma elegir una opcion de ese tipo. El contador es liviano a proposito. */
+export const PUNTOS_NEGOCIO_POR_ELECCION = 3;
+
+/**
+ * Cuanto empuja la afinidad al peso de un evento en el sorteo.
+ *
+ * `peso_efectivo = peso * (1 + PESO_AFINIDAD_NEGOCIO * proporcion)`, donde
+ * `proporcion` es la parte del total que se lleva esa afinidad (0..1). Con 1.2,
+ * un jugador que metio TODO en una sola afinidad ve esos eventos con el doble
+ * de peso — y sigue viendo todos los demas, porque el multiplicador nunca baja
+ * de 1. Inclinar, no bloquear: esa es toda la idea.
+ */
+export const PESO_AFINIDAD_NEGOCIO = 1.2;
+
 // --- Guardado ---
-export const STORAGE_KEY = 'paquero:partida:v2';
-export const STORAGE_VERSION = 2;
+export const STORAGE_KEY = 'paquero:partida:v4';
+export const STORAGE_VERSION = 4;
 
 // --- Helpers numericos ---
 export const clamp = (v, min, max) => Math.min(max, Math.max(min, v));

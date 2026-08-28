@@ -101,6 +101,32 @@ function BloqueEcos({ ecos }) {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * La cabecera que anuncia de qué va el evento. Un mapa y no una cadena de
+ * ternarios: son ocho tipos de especial y sumar el noveno tiene que ser
+ * agregar una línea, no anidar un nivel más.
+ */
+const ETIQUETA_ESPECIAL = {
+  bifurcacion: '🔀 El cruce de los 18',
+  segunda_chance: '🎓 Segunda chance',
+  hijo: '🧒 Se agranda la familia',
+  socio_presentacion: '🤝 Tu socio',
+  socio_prueba: '🤝 Tu socio',
+  socio_cierre: '🤝 Tu socio',
+  duenio: '👑 El dueño anterior',
+  mantenimiento: '🏚️ Se te afloja',
+  acercamiento: '🎯 Falta poco',
+  tension_terr: '⚔️ Roce entre tus zonas',
+  bisagra: '⏳ Año bisagra',
+  bisagra_terr: '⏳ Año bisagra',
+};
+
+function etiquetaDe(def) {
+  if (def.esCrisis) return '⚠️ Crisis';
+  if (def.especial && ETIQUETA_ESPECIAL[def.especial]) return ETIQUETA_ESPECIAL[def.especial];
+  return def.tipo === 'automatico' ? 'Pasó esto' : 'Hay que decidir';
+}
+
 function VistaEvento({ estado, acciones }) {
   const [mini, setMini] = useState(null);
   const actual = eventoActual(estado);
@@ -115,21 +141,7 @@ function VistaEvento({ estado, acciones }) {
   const ctx = ctxTexto(estado);
   const titulo = resolverTexto(def.titulo, ctx);
 
-  const etiqueta = def.esCrisis
-    ? '⚠️ Crisis'
-    : def.especial === 'bifurcacion'
-      ? '🔀 El cruce de los 18'
-      : def.especial === 'segunda_chance'
-        ? '🎓 Segunda chance'
-        : def.especial === 'hijo'
-          ? '🧒 Se agranda la familia'
-          : def.especial?.startsWith('socio_')
-            ? '🤝 Tu socio'
-            : def.especial?.startsWith('bisagra')
-              ? '⏳ Año bisagra'
-              : def.tipo === 'automatico'
-                ? 'Pasó esto'
-                : 'Hay que decidir';
+  const etiqueta = etiquetaDe(def);
 
   const colorEtiqueta = def.esCrisis ? 'rojo' : def.especial ? 'dorado' : 'humo';
 
@@ -209,7 +221,11 @@ function VistaEvento({ estado, acciones }) {
                     {resolverTexto(op.texto, ctx)}
                   </span>
                   <span className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <Chip color={riesgo.color}>{riesgo.label}</Chip>
+                    {/* El riesgo "nulo" no se anuncia: si el jugador supiera
+                        de antemano que una opción no tiene nada en juego,
+                        dejaría de sentir que todas las decisiones pesan. Las
+                        demás franjas de riesgo sí se muestran igual. */}
+                    {op.riesgo !== 'nulo' && <Chip color={riesgo.color}>{riesgo.label}</Chip>}
                     {op.esfuerzo_fisico && <Chip color="humo">💪 Físico</Chip>}
                     {mj && (
                       <Chip color="dorado">
@@ -220,6 +236,15 @@ function VistaEvento({ estado, acciones }) {
                         día que se cobra tiene que verse que se cobró. */}
                     {info.bonusEstudio > 0 && (
                       <Chip color="verde">🎓 Cabeza +{info.bonusEstudio}%</Chip>
+                    )}
+                    {/* Lo que decidiste con el dueño anterior de este lugar,
+                        volviendo a cobrarse años después. */}
+                    {info.bonusDuenio !== 0 && (
+                      <Chip color={info.bonusDuenio > 0 ? 'verde' : 'rojo'}>
+                        {info.duenioDestino === 'aliado' ? '🤝' : '👞'}{' '}
+                        {info.bonusDuenio > 0 ? '+' : ''}
+                        {info.bonusDuenio}%
+                      </Chip>
                     )}
                     {info.estudioViable === false && (
                       <Chip color="rojo">📉 No hiciste la cabeza</Chip>
@@ -593,6 +618,19 @@ function VistaResumen({ estado, acciones, onRetirarse }) {
           ))}
         </ul>
       </details>
+
+      {/*
+        El gancho. Va SIEMPRE y va último, pegado al botón de seguir: es lo
+        último que el jugador lee antes de decidir si sigue jugando.
+      */}
+      {r.cliffhanger && (
+        <div className="anim-subir rounded-2xl border border-dorado/30 bg-dorado-hondo/15 p-4">
+          <div className="font-display text-[10px] uppercase tracking-[0.22em] text-dorado">
+            Y algo más
+          </div>
+          <p className="mt-1.5 leading-relaxed text-tiza italic">{r.cliffhanger}</p>
+        </div>
+      )}
 
       <div className="space-y-2">
         <Boton className="w-full" variante="dorado" onClick={acciones.siguienteAnio}>

@@ -1,6 +1,7 @@
 import { BLOQUES_BIOGRAFIA, SECCIONES_BIOGRAFIA } from '../data/biografia.js';
 import { vistaHijo, vistaSocio } from './vinculos.js';
 import { tuvoFlag, flagsDeCarrera } from './memoria.js';
+import { vistaNegocio, afinidadDominante } from './negocio.js';
 import { rndElem } from './rng.js';
 
 /**
@@ -40,12 +41,20 @@ export function contextoBiografia(estado, final) {
     edadEleccion: estado.camino?.reconversion?.edad ?? estado.camino?.edadEleccion ?? null,
     puntosEstudio: estado.camino?.puntosEstudio ?? 0,
 
+    // En qué se convirtió después de los 23.
+    negocio: vistaNegocio(estado),
+    rubro: afinidadDominante(estado),
+
     hijo: vistaHijo(estado),
     // El socio solo cuenta como personaje si llegó a aparecer en la partida.
     socio: estado.socio?.momentos?.length ? vistaSocio(estado) : null,
 
     territorioMax: estado.territorios.reduce((m, t) => Math.max(m, t.nivel), 0),
     territorios: estado.territorios,
+    // Lo que hiciste con cada tipo al que le sacaste su lugar, y lo que no
+    // pudiste bancar. Las dos cosas sobreviven al territorio en sí.
+    duenios: estado.duenios ?? [],
+    territoriosPerdidos: estado.territoriosPerdidos ?? [],
     mudanzas: estado.mudanzas,
     enElExterior: estado.enElExterior,
     volvioAlPais: estado.volvioAlPais,

@@ -2,8 +2,16 @@ import { EVENTOS_SECUNDARIO } from './secundario.js';
 import { EVENTOS_ADULTEZ } from './adultez.js';
 import { EVENTOS_CRISIS } from './crisis.js';
 import { EVENTOS_CAMINOS } from './caminos.js';
+import { EVENTOS_ADULTOS } from './adultos.js';
+import { EVENTOS_NEGOCIOS } from './negocios.js';
 import { EVENTOS_BISAGRA_ESPECIALES } from './bisagras.js';
-import { ETAPAS } from '../../core/constants.js';
+import { EVENTOS_TERRITORIO } from './territorio.js';
+import {
+  ETAPAS,
+  EDAD_BIFURCACION as EDAD_ADULTA,
+  EDAD_NEGOCIOS,
+  AFINIDADES_NEGOCIO,
+} from '../../core/constants.js';
 
 /**
  * Pool unico. Sigue sin haber rutas, requisitos ni desbloqueos entre eventos:
@@ -20,11 +28,15 @@ export const TODOS_LOS_EVENTOS = [
   ...EVENTOS_SECUNDARIO,
   ...EVENTOS_ADULTEZ,
   ...EVENTOS_CAMINOS,
+  ...EVENTOS_ADULTOS,
+  ...EVENTOS_NEGOCIOS,
 ].map(normalizar);
 
 export const POOL_CRISIS = EVENTOS_CRISIS.map(normalizar);
 
-export const POOL_ESPECIALES = EVENTOS_BISAGRA_ESPECIALES.map(normalizar);
+export const POOL_ESPECIALES = [...EVENTOS_BISAGRA_ESPECIALES, ...EVENTOS_TERRITORIO].map(
+  normalizar
+);
 
 /** Todos los eventos especiales de un tipo dado, en orden de declaracion. */
 export function especialesDe(tipo) {
@@ -40,6 +52,15 @@ function normalizar(ev) {
     // null = sirve para los dos caminos (la mayoria del pool).
     camino: null,
     sub: null,
+    // true = contenido adulto. Lo valida `validarPool`: exige edad_min >= 18.
+    adulto: false,
+    // Rubro del evento de negocio (comercio | finanzas | territorio |
+    // politica | farandula). null = no es un evento de negocio.
+    //
+    // Ojo: NO se llama `afinidad` porque los eventos de estudio del Secundario
+    // ya usan ese campo para la sub-variante (fama | mana). Son dos cosas
+    // distintas y compartir el nombre las hacia chocar.
+    rubro: null,
     edad_min: ev.edad_min ?? etapa?.edadMin ?? 0,
     edad_max: ev.edad_max ?? etapa?.edadMax ?? 999,
     ...ev,
@@ -64,6 +85,35 @@ export function validarPool(pool = [...TODOS_LOS_EVENTOS, ...POOL_CRISIS, ...POO
       problemas.push(`${ev.id}: sub-variante desconocida "${ev.sub}"`);
     if (ev.sub && ev.camino !== 'estudiar')
       problemas.push(`${ev.id}: tiene sub-variante pero no es del camino estudiar`);
+
+    // El gate de contenido adulto es mecanico, no una convencion de escritura:
+    // un evento marcado `adulto` que pueda salir antes de los 18 es un error
+    // de pool y el simulador no arranca hasta que se arregle.
+    if (ev.adulto) {
+      if (ev.etapa !== 'adultez')
+        problemas.push(`${ev.id}: adulto:true fuera de la etapa adultez`);
+      if ((ev.edad_min ?? 0) < EDAD_ADULTA)
+        problemas.push(
+          `${ev.id}: adulto:true con edad_min ${ev.edad_min} (tiene que ser >= ${EDAD_ADULTA})`
+        );
+    }
+
+    // Rubro de negocio: tipo valido y no antes de los 23, que es cuando
+    // arranca esa etapa.
+    if (ev.rubro) {
+      if (!AFINIDADES_NEGOCIO[ev.rubro])
+        problemas.push(`${ev.id}: rubro de negocio desconocido "${ev.rubro}"`);
+      if ((ev.edad_min ?? 0) < EDAD_NEGOCIOS)
+        problemas.push(
+          `${ev.id}: evento de negocio con edad_min ${ev.edad_min} (tiene que ser >= ${EDAD_NEGOCIOS})`
+        );
+    }
+    // Lo mismo del otro lado: una opcion que suma afinidad tiene que ser de un
+    // tipo que exista, o el contador se llena con basura en silencio.
+    for (const op of ev.opciones ?? []) {
+      if (op.negocio && !AFINIDADES_NEGOCIO[op.negocio])
+        problemas.push(`${ev.id}: opcion con negocio desconocido "${op.negocio}"`);
+    }
 
     if (ev.tipo === 'automatico') {
       if (!ev.slot) problemas.push(`${ev.id}: automatico sin slot`);

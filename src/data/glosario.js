@@ -57,6 +57,11 @@ export const GLOSARIO_VINCULOS = {
     como: 'Se define en el evento de los 18. Si estudiás, la carrera que te toca sale sola de qué tipo de eventos "de cabeza" te fueron saliendo en el secundario.',
     sirve: 'Cambia parte de los eventos que te salen en la adultez y pesa fuerte en la biografía del final. Desde los 25 a los 30 hay una segunda chance de reconvertirte, pagando.',
   },
+  negocio: {
+    que: 'En qué te fuiste convirtiendo de los 23 en adelante: comercio, finanzas, territorio, política o farándula.',
+    como: 'Solo con lo que elegís. Cada opción de un evento de negocio suma a una de las cinco.',
+    sirve: 'No bloquea nada ni desbloquea nada: hace que te salgan un poco más seguido los eventos de tu palo, y define cómo te cuenta la biografía del final. Podés no especializarte en nada y eso también es un perfil.',
+  },
   hijo: {
     que: 'Cómo le está yendo a tu pibe, de 0 a 100.',
     como: 'Sube cuando le ponés plata, tiempo y presencia; baja cuando elegís la movida por encima de él, y baja solo si vivís marcado o roto.',

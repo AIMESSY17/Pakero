@@ -1,8 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PhaserGame } from '../minijuegos/PhaserGame.jsx';
 import { minijuegoPorId } from '../minijuegos/catalogo.js';
 import { Boton } from './base.jsx';
 import { BONUS_MINIJUEGO_MIN, BONUS_MINIJUEGO_MAX } from '../core/constants.js';
+
+/**
+ * A los cuántos segundos aparece la salida de emergencia.
+ *
+ * El minijuego más largo (`fuga_rescate`) dura 26 s, así que con 35 no molesta
+ * a nadie que esté jugando de verdad.
+ */
+const SEGUNDOS_PARA_ESCAPE = 35;
 
 /**
  * Modal que envuelve al minijuego: primero explica qué se juega, después monta
@@ -15,7 +23,28 @@ import { BONUS_MINIJUEGO_MIN, BONUS_MINIJUEGO_MAX } from '../core/constants.js';
  */
 export function MinijuegoOverlay({ tipo, bonusCombate = 0, contexto, onFin }) {
   const [jugando, setJugando] = useState(false);
+  const [hayEscape, setHayEscape] = useState(false);
   const def = minijuegoPorId(tipo);
+
+  /*
+    Salida de emergencia.
+
+    Una escena de Phaser que revienta adentro de un callback deja al jugador
+    encerrado en el overlay sin ningún botón: la partida sigue viva pero no hay
+    cómo volver a ella. Pasó dos veces (`prensado` leyendo `this.relleno` antes
+    de que existiera, y `perderla_de_vista` con un `duration` mal escrito que
+    cortaba la cadena de tweens), y las dos veces el síntoma fue el mismo.
+
+    No es explotable: devuelve `null`, que es exactamente lo mismo que da el
+    botón "Saltear" de la pantalla anterior. No hay nada que se pueda conseguir
+    por acá que no se pudiera conseguir gratis antes de entrar.
+  */
+  useEffect(() => {
+    if (!jugando) return undefined;
+    setHayEscape(false);
+    const t = setTimeout(() => setHayEscape(true), SEGUNDOS_PARA_ESCAPE * 1000);
+    return () => clearTimeout(t);
+  }, [jugando, tipo]);
 
   if (!def) {
     // Un id de minijuego mal escrito en el contenido no debe cortar la partida.
@@ -38,6 +67,18 @@ export function MinijuegoOverlay({ tipo, bonusCombate = 0, contexto, onFin }) {
             />
           </div>
         </div>
+        {hayEscape && (
+          <div className="anim-subir shrink-0 px-3 pb-2 text-center">
+            <button
+              onClick={() => onFin(null)}
+              className="toque-chico rounded-lg px-3 py-1.5 text-[11px] text-humo-tenue
+                         underline decoration-dotted underline-offset-4 transition
+                         hover:text-humo focus-visible:outline-2 focus-visible:outline-verde"
+            >
+              ¿Se colgó? Salir sin bonus
+            </button>
+          </div>
+        )}
       </div>
     );
   }

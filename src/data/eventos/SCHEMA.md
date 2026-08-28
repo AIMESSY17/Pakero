@@ -23,6 +23,8 @@ camino**. Un evento sin `camino` sirve para todos, que es la mayoría del pool.
 | `peso`            | number (default 1)                | no          | menor peso = aparece menos |
 | `camino`          | `"estudiar"` \| `"calle"` \| `null`| no         | `null` = sirve para los dos |
 | `sub`             | `"comunicacion"` \| `"administracion"` | no     | solo con `camino: "estudiar"` |
+| `adulto`          | boolean                           | no          | contenido 18+. Exige `etapa: "adultez"` y `edad_min >= 18` |
+| `rubro`           | ver "Negocios"                    | no          | evento de negocio. Exige `edad_min >= 23` |
 
 ### Título y texto como función
 
@@ -34,11 +36,16 @@ calculado, se usa `(c) => string`. El contexto `c` está documentado en
 
 ## Eventos automáticos (`tipo: "automatico"`)
 
-Sin opciones. Suben un stat directo. Cada año salen **tres**, uno por slot:
+Sin opciones. Suben un stat directo. Cada año salen **uno o dos**, sorteando
+cuáles de los tres slots (antes salían los tres siempre). Los slots son:
 
 - `slot: "calle"` → sube Calle
 - `slot: "fama"` → sube Fama
 - `slot: "mana_atencion"` → sube Maña **o** baja Atención
+
+Los deltas declarados se multiplican por `MULT_AUTOMATICO` (x2) al aplicarse,
+porque ahora salen ~1,5 por año en vez de 3. Se escribe el valor "natural" y
+el motor compensa: no hay que inflar los números a mano.
 
 ```js
 {
@@ -133,6 +140,45 @@ de bifurcación, la opción de estudiar le sale bien o le sale mal, y qué carre
 le tocó. Todo el contenido de ese estilo vive en
 [`caminos.js`](caminos.js).
 
+## Negocios: los caminos de la vida adulta (23+)
+
+**A los 23 los eventos con `camino: "estudiar"` salen del pool**, haya estudiado
+el jugador o no. A los treinta nadie sigue rindiendo el primer final. El corte
+lo hace `poolDelAnio()` en el motor, así que alcanza con la etiqueta `camino`:
+no hay que ponerle `edad_max` a cada evento de facultad.
+
+Su lugar lo ocupan los eventos de negocio, que arrancan a esa misma edad y son
+el mecanismo por el que el personaje va definiendo en qué se convierte. Viven
+en [`negocios.js`](negocios.js) y funcionan en dos capas:
+
+| dónde | campo | para qué |
+|-------|-------|----------|
+| en el **evento** | `rubro: 'comercio'` | de qué palo es. Inclina cuánto pesa en el sorteo |
+| en la **opción** | `negocio: 'finanzas'` | qué te hace elegirla. Es lo que suma al contador |
+
+Las cinco afinidades: `comercio` (rutas, mercadería, distribución), `finanzas`
+(estructuras, contadores, blanqueo), `territorio` (control de zona, bandas),
+`politica` (favores, corrupción, poder formal) y `farandula` (vida pública,
+auspicios, medios — prioriza Fama por encima del resto).
+
+**Un evento suele ofrecer opciones de rubros DISTINTOS**: ahí está la decisión
+de en qué te convertís. El evento de comercio cuya segunda opción es
+`territorio` es lo que hace que esto sea un generador de caminos y no una
+etiqueta.
+
+### Cómo inclina, y por qué no es una ruta
+
+`peso_efectivo = peso × (1 + 1.2 × proporción_de_esa_afinidad)`
+
+El multiplicador **nunca baja de 1**, así que ningún evento queda excluido: los
+del palo del jugador salen más seguido y el resto sigue saliendo. Medido con
+bots que eligen siempre lo mismo, los eventos de su rubro pasan del 20% base a
+un 20-25% del total. Es un empujón, no un riel.
+
+`rubro` y `afinidad` **no son el mismo campo**: `afinidad` ya la usan los
+eventos de estudio del Secundario para la sub-variante (`fama` | `mana`).
+Compartir el nombre las hacía chocar y el validador lo rechaza.
+
 ## Flags de memoria (`flags`)
 
 Un resultado puede dejar un flag. El flag **no desbloquea ni condiciona ningún
@@ -166,6 +212,10 @@ Los que el motor **programa** en vez de sortear. Se marcan con `especial`:
 | `socio_cierre`         | 36+, con `variante: 'leal' \| 'traicion'` |
 | `bisagra`              | a los 20, 25, 30, 35 y 40 |
 | `bisagra_terr`         | reemplaza a la bisagra si el hito de Territorio está al 70% o más |
+| `acercamiento`         | te faltan entre 1 y 9 puntos de stat para el próximo umbral |
+| `duenio`               | al conquistar: qué hacés con el dueño anterior |
+| `mantenimiento`        | cada 2-3 años por territorio. Se puede **perder** |
+| `tension_terr`         | con 2+ territorios, se rozan entre ellos |
 
 Por lo demás son eventos de decisión comunes: mismos cinco grados, misma tirada,
 mismo panel. Techo de **2 especiales por año** (`MAX_ESPECIALES_POR_ANIO`).
@@ -182,10 +232,43 @@ el azar define *cómo* te arranca, no *para dónde*.
 | `{ hijo: true }`               | nace el pibe |
 | `{ socio: '<estado>' }`        | `presentacion`, `firme`, `traiciono`, `retirado`, `ultima`, `reconciliado`, `cerrado` |
 | `{ empujeTerritorio: true }`   | te empuja hacia el próximo umbral de Territorio según el grado |
+| `{ duenio: '<destino>' }`      | `libre`, `humillado` o `aliado` — marca al dueño anterior |
+| `{ mantener: true }`           | reprograma el mantenimiento de ese territorio |
+| `{ perderTerritorio: [...] }`  | array de **grados** en los que se pierde el territorio |
+
+`perderTerritorio` es el único efecto que mira el grado: `['critico_fracaso']`
+lo pierde solo en el desastre, `['fracaso', 'critico_fracaso']` en los dos.
+
+### El contexto de Territorio (`c.terr`)
+
+Los eventos de Territorio leen `c.terr`, que el motor arma en `focoTerritorio`
+antes de construir el año:
+
+| campo             | cuándo está |
+|-------------------|-------------|
+| `c.terr.lugar`    | mantenimiento, dueño |
+| `c.terr.flavor`   | una línea del lugar (ver [`data/flavor.js`](../flavor.js)) |
+| `c.terr.duenio`   | evento del dueño anterior |
+| `c.terr.hito`     | acercamiento: `{ nivel, puntos, guitaFaltante }` |
+| `c.terr.aniosDesde` | mantenimiento: hace cuánto que lo tenés |
+| `c.terr.a` / `.b` | tensión: los dos territorios que se rozan |
+
+## Contenido adulto (`adulto: true`)
+
+Va en [`adultos.js`](adultos.js). Registro: comedia picaresca argentina —
+chamuyo, levante, quilombo de telo, el amigo que te deja pagando. Se insinúa,
+se hace el chiste y se corta en la puerta del cuarto, que además es donde el
+chiste funciona. El gag es el papelón, no la escena.
+
+El gate es **mecánico, no una convención de escritura**. `validarPool()` exige
+que todo evento con `adulto: true` tenga `etapa: "adultez"` y `edad_min >= 18`,
+y el simulador no arranca si alguno no cumple. El Secundario (12-17) no toca
+ese pool nunca, por construcción.
 
 ## Reglas de contenido
 
 - **Nunca** contenido sexual ni romántico con menores, bajo ningún encuadre.
   El juego arranca a los 12 y el Secundario entero transcurre con el personaje
-  menor de edad, así que esto no es una formalidad: es la regla que define qué
-  puede pasar en la primera etapa.
+  menor de edad. Por eso el contenido adulto vive en su propio archivo con un
+  `edad_min` que el validador hace cumplir: la regla está en el código, no
+  solamente acá.

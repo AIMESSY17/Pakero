@@ -6,7 +6,10 @@ distintos según cómo termines.
 
 Arriba de eso: una bifurcación a los 18 que se venía cocinando desde los 12, un
 hijo y un socio con arco propio, cosas que hiciste hace cinco años y vuelven, y
-una biografía final armada con 67 bloques que combinan todo eso.
+una biografía final armada con 71 bloques que combinan todo eso.
+
+Cada territorio tiene un dueño al que se lo sacaste, hay que volver a bancarlo
+cada dos o tres años y se puede perder. Y ningún año cierra sin un gancho.
 
 React + Vite + Tailwind v4. Minijuegos en Phaser 3.
 
@@ -46,8 +49,10 @@ src/
     finales.js       Elige cuál de los 14 finales corresponde
     biografia.js     Arma la biografía del final combinando el banco de bloques
     camino.js        La bifurcación de los 18 y la segunda chance
+    negocio.js       Las 5 afinidades de negocio de los 23 en adelante
     vinculos.js      El hijo y el socio (sus trackers y el arco)
     memoria.js       Flags que vuelven 3-5 años después
+    cliffhanger.js   Elige el gancho con que cierra cada año
     texto.js         Resuelve títulos/textos que son función (nombran gente)
     partida.js       Creación del personaje (incluye el 1% de pibe maravilla)
     storage.js       localStorage
@@ -57,11 +62,17 @@ src/
       secundario.js    12-17
       adultez.js       18-45
       caminos.js       Eventos que suman "cabeza" + los de cada camino
+      adultos.js       Contenido 18+ (el validador hace cumplir la edad)
+      negocios.js      Los 20 eventos de negocio, 23+ (5 rubros)
       bisagras.js      Los especiales que el motor programa
+      territorio.js    Acercamiento, dueño anterior, mantenimiento, tensión
       crisis.js        Mala racha
     finales.js       Los 14 finales con sus condiciones
-    biografia.js     Banco de 67 bloques + la lista de variables gatillo
+    biografia.js     Banco de 71 bloques + la lista de variables gatillo
     memoria.js       Los ecos: qué se dice cuando un flag vuelve
+    cliffhangers.js  Banco de 29 ganchos de cierre de año
+    flavor.js        2-3 líneas propias para cada uno de los 34 lugares
+    duenios.js       Arquetipos del dueño anterior de cada territorio
     lugares.js       Villas, provincias, países, umbrales de territorio
     mercado.js       Staff, consumibles, lujo
     nombres.js       Nombres y apodos para el rival, el socio y el hijo
@@ -112,12 +123,99 @@ minijuegos de disparo — quedaron levantadas. Los streamers de `nombres.js`
 siguen siendo inventados porque así se escribieron, no porque no se pueda
 hacer otra cosa.
 
+**Contenido adulto (18+).** Vive en
+[`eventos/adultos.js`](src/data/eventos/adultos.js), marcado `adulto: true`.
+El registro es la comedia picaresca argentina: chamuyo, levante, quilombo de
+telo, el amigo que te deja pagando. Se insinúa, se hace el chiste y se corta
+en la puerta del cuarto — el gag es el papelón, no la escena.
+
+El corte por edad es **mecánico**: `validarPool()` exige `etapa: "adultez"` y
+`edad_min >= 18` en todo evento marcado `adulto`, y el simulador aborta si
+alguno no cumple. El Secundario no puede tocar ese pool ni por accidente ni
+por un descuido de quien escriba contenido nuevo.
+
 ## La estructura de una vida
 
-Arriba del año (3 automáticos + 1 decisión) hay una capa de cosas que el motor
-**programa** en vez de sortear. Todas viven en `data/eventos/bisagras.js` y se
-marcan con el campo `especial`. Techo de dos por año, y la bifurcación es
-exclusiva: el año que te definís no pasa nada más.
+Arriba del año (1-2 automáticos + 1 decisión) hay una capa de cosas que el
+motor **programa** en vez de sortear. Viven en `data/eventos/bisagras.js` y
+`data/eventos/territorio.js`, y se marcan con el campo `especial`. Techo de dos
+por año, y la bifurcación es exclusiva: el año que te definís no pasa nada más.
+
+### El ritmo del año
+
+Antes salían los **tres** slots automáticos todos los años: el jugador apretaba
+"Continuar" tres veces antes de llegar a la única decisión real. Ahora salen
+**uno o dos**, sorteando cuáles.
+
+Bajar de 3 a ~1,5 es también un recorte de balance encubierto, así que hay dos
+compensaciones explícitas en `constants.js`, con el número que las justifica en
+el comentario:
+
+- **`MULT_AUTOMATICO` (x2)** — los deltas de los automáticos se duplican al
+  aplicarse. Sin esto, en 400 partidas simuladas la edad final se caía de 26,4
+  a 22,5 y los territorios de 2,0 a 0,97.
+- **`ATENCION_ENFRIAMIENTO_ANUAL` (−3)** — la Atención baja sola un poco cada
+  año. El slot `mana_atencion` era el único freno que tenía, y al salir la
+  mitad de las veces dejó de alcanzar: el **100%** de las partidas terminaba
+  presa, siempre, por acumulación pura. Un regulador que depende del sorteo de
+  slots es un regulador roto; este es pasivo y además es lo que pasa de verdad
+  (lo que no alimentás, se enfría).
+- **`MULT_ATENCION_RIESGO` (0,6)** — cada decisión cobra menos Atención por
+  riesgo, porque ahora hay más decisiones por año (~1,7 contra ~1,2).
+
+Con las tres, la edad final promedio volvió a 26,4: exactamente donde estaba
+antes del cambio de ritmo.
+
+### Territorio: lo que pasa alrededor de la conquista
+
+Conquistar era un botón que se apretaba una vez y pagaba renta para siempre.
+Ahora tiene antes, durante y después:
+
+- **Acercamiento** — cuando te faltan entre 1 y 9 puntos para el umbral, la
+  zona se entera antes que vos y hay que decidir si te mostrás o te callás.
+- **El dueño anterior** — ningún lugar está vacío. Al conquistar aparece un
+  tipo con nombre, apodo y arquetipo, y hay que decidir: dejarlo ir,
+  humillarlo o sumarlo. No es sabor: cada salida cambia para siempre lo que
+  cuesta **bancar ese territorio** (`aliado` +15%, `humillado` −15%), y se ve
+  como un chip en las opciones del mantenimiento.
+- **Mantenimiento** — cada 2-3 años por territorio hay que volver a bancarlo.
+  La opción de dejarlo correr lo pierde en `fracaso` **y** en desastre. Un
+  territorio perdido se va de verdad: deja de pagar renta y queda listado en la
+  ficha como lo que se te cayó.
+- **Tensión** — con dos o más territorios a la vez, la gente de uno y la del
+  otro se rozan y te vienen a buscar a vos.
+
+Cuando se cae un territorio siempre se cae el de **nivel más alto**, no el que
+nombra el evento: `nivelDisponible` usa `territorios.length`, así que perder el
+del medio dejaría un agujero en la escalera de niveles.
+
+### El flavor de cada lugar
+
+Los 34 lugares de `lugares.js` tienen 2-3 líneas propias en
+[`data/flavor.js`](src/data/flavor.js), y aparecen en sus eventos de conquista
+y mantenimiento. El criterio de escritura está arriba del archivo: la línea
+habla del **lugar** — su geografía, su clima, su ruido, a qué hora se mueve —
+nunca de cómo sería la gente que vive ahí. Un barrio se describe por sus
+pasillos y su cancha; todo lo demás es escribir un prejuicio y llamarlo
+ambientación.
+
+Ojo con los nombres: tienen género propio (La Matanza, La Cava y Ciudad Oculta
+son femeninos; Fuerte Apache es masculino) y el motor no lo sabe. Por eso los
+textos rodean el problema con verbos —"ahora mandás en X", "hace tres años que
+manejás X"— en vez de escribir "X es tuyo".
+
+### El cliffhanger
+
+Cada resumen de año cierra con un gancho, **sin excepción**. Banco de 29 en
+[`data/cliffhangers.js`](src/data/cliffhangers.js), elegido por el contexto
+real del año: la Atención, el rival, el hijo, el socio, un territorio que se
+cayó, un dueño al que humillaste hace años.
+
+Cinco entradas tienen `peso: 0` y `cuando: () => true` — son el piso, para que
+un año sin nada particular tampoco cierre siempre igual. `elegirCliffhanger`
+devuelve texto siempre, incluso si el banco quedara vacío: un resumen sin
+gancho es el bug que este sistema existe para evitar, y el simulador cuenta
+cuántos resúmenes salieron sin uno (tiene que dar cero).
 
 ### La bifurcación de los 18
 
@@ -134,6 +232,46 @@ eligió sin saberlo, durante seis años.
 Las sub-variantes **no son rutas**: cambian el sabor de algunos eventos de la
 etapa. El filtro del pool sigue siendo etapa + edad, con dos campos opcionales
 (`camino`, `sub`) que la mayoría de los eventos ni usa.
+
+### A los 23 se termina la facultad
+
+Los eventos con `camino: "estudiar"` salen del pool a los 23, **haya estudiado
+o no**: a los treinta nadie sigue rindiendo el primer final. El corte lo hace
+`poolDelAnio()` mirando la etiqueta `camino`, así que no hay que ponerle un
+`edad_max` a cada evento de facultad ni acordarse al escribir contenido nuevo.
+
+El evento de **segunda chance sigue existiendo** (25-30): no es contenido
+recurrente de cursada, es un pivote de vida que ocurre una sola vez, y era una
+mecánica pedida aparte. Lo que se corta es la facultad como escenografía
+repetida, no la posibilidad de volver a estudiar.
+
+### En qué te convertís: las 5 afinidades de negocio
+
+A partir de los 23 los eventos de negocio ocupan ese lugar y son el mecanismo
+por el que el personaje define su vida adulta. Cinco afinidades — **comercio**
+(rutas, mercadería), **finanzas** (estructuras, blanqueo), **territorio**
+(zona, bandas), **política** (favores, poder formal) y **farándula** (vida
+pública, auspicios, medios; prioriza Fama).
+
+No son rutas. Es el mismo truco que `puntosEstudio`, escalado a cinco lados: un
+contador liviano que se llena **con lo que el jugador elige** y que solo
+inclina el sorteo.
+
+```
+peso_efectivo = peso × (1 + 1.2 × proporción_de_esa_afinidad)
+```
+
+El multiplicador nunca baja de 1, así que **ningún evento queda excluido**. Un
+tipo con 100% de finanzas sigue viendo eventos de calle y de farándula: los ve
+menos seguido, nada más.
+
+Cada evento tiene un `rubro` (de qué palo es, inclina el sorteo) y cada opción
+un `negocio` (en qué te convierte, suma al contador). Casi todos los eventos
+ofrecen opciones de rubros distintos — ahí está la decisión.
+
+Medido con bots que eligen siempre lo mismo: la afinidad elegida queda
+dominante en el 49-71% de las partidas, y sus eventos suben del 20% base a un
+20-25% del total. Inclina; no rutea.
 
 ### La segunda chance (25-30)
 
@@ -271,3 +409,14 @@ y Fama solas, sin jugar, ya casi no generan nada.
   vez de migrarla a mano, `storage.js` la descarta sola por versión.
 - **El pool sigue sin árbol de dependencias.** Los flags de memoria no
   desbloquean eventos: solo agregan un párrafo 3-5 años después.
+- **La clave de guardado subió a `v3`.** El GameState sumó `duenios`,
+  `territoriosPerdidos`, `pendienteDuenio` y `focoTerritorio`, y los
+  territorios ahora llevan `proximoMantenimiento`. Una partida `v2` no los
+  tiene, así que `storage.js` la descarta sola por versión.
+- **Los territorios ya no son permanentes.** Cada uno tiene
+  `proximoMantenimiento`, la ficha muestra cuántos años faltan, y perderlo
+  saca la renta de $800.000 anuales. En la simulación con juego al azar se
+  pierde alrededor de un territorio por partida.
+- **Un solo evento de acercamiento por nivel.** Se marca como
+  `<id>:n<nivel>` en `especialesJugados`, así el mismo evento puede volver
+  para el hito siguiente sin repetirse dentro del mismo.

@@ -83,8 +83,42 @@ export class PresionScene extends BaseMinijuego {
     this.input.keyboard?.on('keydown-SPACE', () => (this.apretando = true));
     this.input.keyboard?.on('keyup-SPACE', () => (this.apretando = false));
 
+    /*
+      Red de seguridad a nivel DOM.
+
+      Este es el único minijuego de mantener apretado, así que es el único al
+      que le importa que el "soltar" llegue SIEMPRE. Si el dedo (o el mouse)
+      arranca adentro del canvas y se suelta afuera — que en un celular es
+      tan fácil como pasarse del borde — los eventos de Phaser no llegan y
+      `apretando` queda trabado en true: la presión se va a 100, revienta en
+      loop y el minijuego se siente roto sin estarlo.
+
+      `window` recibe el pointerup pase lo que pase. Se escucha con captura
+      para ganarle a cualquier cosa que corte la propagación.
+    */
+    this.soltarGlobal = () => {
+      this.apretando = false;
+    };
+    for (const ev of ['pointerup', 'pointercancel', 'mouseup', 'touchend', 'touchcancel', 'blur']) {
+      window.addEventListener(ev, this.soltarGlobal, true);
+    }
+    // `shutdown` corre cuando la escena se destruye: sin esto, los listeners
+    // quedan colgados de `window` y se acumulan cada vez que se abre un
+    // minijuego, apuntando a escenas que ya no existen.
+    this.events.once('shutdown', () => this.limpiarEscuchas());
+    this.events.once('destroy', () => this.limpiarEscuchas());
+
     this.moverFranja();
     this.reloj = this.barraTiempo(this.duracion, () => this.cerrar());
+  }
+
+  /** Saca los listeners de `window` que puso `arrancar`. Idempotente. */
+  limpiarEscuchas() {
+    if (!this.soltarGlobal) return;
+    for (const ev of ['pointerup', 'pointercancel', 'mouseup', 'touchend', 'touchcancel', 'blur']) {
+      window.removeEventListener(ev, this.soltarGlobal, true);
+    }
+    this.soltarGlobal = null;
   }
 
   /** La zona buena se corre cada tanto: no alcanza con dejar el dedo puesto. */
@@ -108,7 +142,12 @@ export class PresionScene extends BaseMinijuego {
   }
 
   update(_, dt) {
-    if (this.terminado) return;
+    // `update()` arranca a correr apenas se crea la escena, pero `arrancar()`
+    // (donde se crea `this.relleno`) recien corre cuando termina la cuenta
+    // regresiva de 3-2-1. Sin este guard, las primeras vueltas de update()
+    // revientan leyendo propiedades que todavia no existen y el minijuego se
+    // queda tildado antes de arrancar.
+    if (this.terminado || !this.relleno) return;
     const paso = dt / 1000;
     this.tiempoTotal += paso;
 

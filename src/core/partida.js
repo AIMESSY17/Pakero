@@ -2,6 +2,7 @@ import { crearRng, rndElem, rndInt, chance } from './rng.js';
 import { NOMBRES_VILLEROS, APODOS, STREAMERS_PARODIA } from '../data/nombres.js';
 import { VILLAS } from '../data/lugares.js';
 import { estadoCaminoInicial } from './camino.js';
+import { estadoNegocioInicial } from './negocio.js';
 import { crearSocio } from './vinculos.js';
 import {
   EDAD_INICIAL,
@@ -77,6 +78,10 @@ export function crearPartida({ nombre, apodo, seed } = {}) {
     // contador oculto de puntos de estudio (ver core/camino.js).
     camino: estadoCaminoInicial(),
 
+    // De los 23 en adelante, en que se va convirtiendo. Contador liviano de
+    // cinco afinidades que solo inclina el sorteo (ver core/negocio.js).
+    negocio: estadoNegocioInicial(),
+
     // El socio ya existe con nombre y apodo desde el minuto cero, pero recien
     // aparece en la partida cuando cae su evento de presentacion (19-24).
     socio: crearSocio({ rng }),
@@ -94,6 +99,10 @@ export function crearPartida({ nombre, apodo, seed } = {}) {
     origen: { tipo: 'villa', nombre: villaOrigen },
     zonasVisitadas: [{ tipo: 'villa', nombre: villaOrigen, edad: EDAD_INICIAL, origen: true }],
     territorios: [],
+    // Los dueños anteriores a los que les sacaste algo, y que hiciste con cada
+    // uno. Sobrevive a perder el territorio: la decision queda igual.
+    duenios: [],
+    territoriosPerdidos: [],
     mudanzas: 0,
     enElExterior: false,
     volvioAlPais: false,
@@ -122,6 +131,10 @@ export function crearPartida({ nombre, apodo, seed } = {}) {
     fase: 'evento', // evento | conquista | resumen | fin
     anioActual: null,
     pendienteConquista: null,
+    // El tipo al que le sacaste el territorio, esperando que decidas.
+    pendienteDuenio: null,
+    // Contexto del evento de Territorio del año (lo arma el motor).
+    focoTerritorio: null,
     resumen: null,
     final: null,
     // Cola de carteles a mostrar antes de arrancar. Se van sacando de a uno

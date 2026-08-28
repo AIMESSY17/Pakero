@@ -19,6 +19,10 @@
  *   c.camino           'estudiar' | 'calle' | null
  *   c.sub              'comunicacion' | 'administracion' | null
  *   c.reconvertido     boolean            usó la segunda chance (25-30)
+ *   c.rubro            'comercio' | 'finanzas' | 'territorio' | 'politica'
+ *                      | 'farandula' | null   — la afinidad de negocio más alta
+ *   c.negocio          null | { total, dominante, disperso, reparto }
+ *                      `dominante` solo si se lleva más de un tercio del total
  *   c.edadEleccion     a qué edad se definió el camino
  *
  *   c.hijo             null | { nombre, edad, tracker, estado, hitos }
@@ -29,7 +33,10 @@
  *                      momentos: cuáles de los tres actos del arco se jugaron
  *
  *   c.territorioMax    0..4               el nivel más alto conquistado
- *   c.territorios      [{ nivel, tipo, nombre, edad }]
+ *   c.territorios      [{ nivel, tipo, nombre, edad, duenio }]
+ *   c.duenios          [{ nombre, apodo, territorio, destino }]
+ *                      destino: 'libre' | 'humillado' | 'aliado'
+ *   c.territoriosPerdidos [{ nombre, perdidoALos }]  los que no supiste bancar
  *   c.mudanzas c.enElExterior c.volvioAlPais
  *
  *   c.duelo            'gano' | 'empate' | 'perdio'    contra el Rival
@@ -279,7 +286,9 @@ const OFICIO = [
     peso: 3,
     cuando: (c) => c.territorioMax === 1,
     texto: (c) =>
-      `Tuvo ${c.territorios[0]?.nombre ?? 'su barrio'} y lo tuvo de verdad: nadie entraba sin saludarlo. ` +
+      // Nada de pronombres para el lugar: los nombres tienen género propio
+      // (La Matanza, Fuerte Apache) y el motor no lo sabe.
+      `Mandó en ${c.territorios[0]?.nombre ?? 'su barrio'}, y de verdad: nadie entraba sin saludarlo. ` +
       'Para el que mira de afuera es poco. Para el que sabe cómo se consigue una sola cuadra, ' +
       'es exactamente todo lo que se puede pedir.',
   },
@@ -352,6 +361,126 @@ const OFICIO = [
       `Y después está lo de ${c.rival.nombre}: ${c.ventas} a ${c.rival.ventas}. Una. ` +
       'Toda una vida midiéndose para terminar separados por una sola venta, ' +
       'que es la peor manera de ganar y la peor manera de perder al mismo tiempo.',
+  },
+  {
+    id: 'oficio_rubro_comercio',
+    seccion: 'oficio',
+    peso: 7,
+    cuando: (c) => c.negocio?.dominante && c.rubro === 'comercio',
+    texto: () =>
+      'Terminó siendo, de todas las cosas posibles, un tipo de logística. Rutas, galpones, ' +
+      'quién carga y a qué hora. Nada de lo que hizo salía en ninguna película, y justamente ' +
+      'por eso funcionó tantos años: mover cosas bien es un oficio y lo aprendió entero.',
+  },
+  {
+    id: 'oficio_rubro_finanzas',
+    seccion: 'oficio',
+    peso: 7,
+    cuando: (c) => c.negocio?.dominante && c.rubro === 'finanzas',
+    texto: () =>
+      'Se convirtió en el que ordena los números. Sociedades, facturas, un circuito que aguanta ' +
+      'que lo miren de frente. Dejó de contar la plata arriba de una mesa y pasó a contarla en ' +
+      'una planilla, que es el momento exacto en que uno deja de ser un pibe con guita ' +
+      'y pasa a ser otra cosa.',
+  },
+  {
+    id: 'oficio_rubro_territorio',
+    seccion: 'oficio',
+    peso: 7,
+    cuando: (c) => c.negocio?.dominante && c.rubro === 'territorio',
+    texto: () =>
+      'No se movió del palo del que salió: zona, gente y control. Pudo haberse ido para el lado ' +
+      'de los papeles o de los contactos y eligió quedarse donde las cosas se resuelven en persona. ' +
+      'Es el camino más corto y el que más cuerpo cuesta.',
+  },
+  {
+    id: 'oficio_rubro_politica',
+    seccion: 'oficio',
+    peso: 7,
+    cuando: (c) => c.negocio?.dominante && c.rubro === 'politica',
+    texto: () =>
+      'Terminó del lado de los que firman. Despachos, favores devueltos y gente que atiende ' +
+      'el teléfono a la primera. Descubrió temprano lo que a otros les cuesta media vida: ' +
+      'que el poder de verdad no se ejerce en la esquina, se ejerce en una oficina con aire acondicionado.',
+  },
+  {
+    id: 'oficio_rubro_farandula',
+    seccion: 'oficio',
+    peso: 7,
+    cuando: (c) => c.negocio?.dominante && c.rubro === 'farandula',
+    texto: (c) =>
+      'Se convirtió en un personaje público. Auspicios, cámaras, gente que lo saluda en la calle ' +
+      `sin saber bien por qué. Cerró con ${c.stats.fama} de Fama, que es el número que eligió ` +
+      'hacer crecer por encima de todos los demás. El nombre le terminó valiendo más que cualquier mercadería.',
+  },
+  {
+    id: 'oficio_rubro_disperso',
+    seccion: 'oficio',
+    peso: 6,
+    cuando: (c) => c.negocio?.disperso && c.negocio.reparto.length >= 3,
+    texto: (c) =>
+      `Nunca se especializó en nada. Anduvo en ${c.negocio.reparto.length} rubros distintos ` +
+      'sin quedarse del todo en ninguno: un poco de esto cuando aparecía, un poco de aquello ' +
+      'cuando se caía lo anterior. Los que se dedicaron a una sola cosa llegaron más alto. ' +
+      'Él llegó a más lugares.',
+  },
+  {
+    id: 'oficio_perdio',
+    seccion: 'oficio',
+    peso: 6,
+    cuando: (c) => c.territoriosPerdidos.length > 0,
+    texto: (c) => {
+      const p = c.territoriosPerdidos[0];
+      const n = c.territoriosPerdidos.length;
+      return (
+        `Llegó a mandar en ${p.nombre} y a los ${p.perdidoALos} ya no. ` +
+        (n > 1 ? `Y no fue el único lugar que se le cayó: fueron ${n}. ` : '') +
+        'Conquistar tiene una noche y una foto; bancarlo tiene todos los otros días, ' +
+        'y ahí es donde se le fue.'
+      );
+    },
+  },
+  {
+    id: 'oficio_duenio_humillado',
+    seccion: 'oficio',
+    peso: 6,
+    cuando: (c) => c.duenios.some((d) => d.destino === 'humillado'),
+    texto: (c) => {
+      const d = c.duenios.find((x) => x.destino === 'humillado');
+      const n = c.duenios.filter((x) => x.destino === 'humillado').length;
+      return (
+        `A ${d.nombre} lo sacó de ${d.territorio} caminando por el medio, con todo el barrio mirando. ` +
+        (n > 1 ? `Y no fue el único al que se lo hizo. ` : '') +
+        'Le funcionó: nadie discutió nada por mucho tiempo. ' +
+        'Lo que no calculó es que un tipo al que le sacaste todo y encima dejaste vivo ' +
+        'se pasa el resto de su vida con una sola cosa que hacer.'
+      );
+    },
+  },
+  {
+    id: 'oficio_duenio_aliado',
+    seccion: 'oficio',
+    peso: 6,
+    cuando: (c) => c.duenios.some((d) => d.destino === 'aliado'),
+    texto: (c) => {
+      const d = c.duenios.find((x) => x.destino === 'aliado');
+      return (
+        `Cuando le sacó ${d.territorio} a ${d.nombre}, en vez de echarlo lo sentó a la mesa. ` +
+        'Se rieron de eso durante meses, hasta que se dejaron de reír: ' +
+        'el tipo conocía cada pasillo del lugar porque los había caminado veinte años, ' +
+        'y esa información no se compra.'
+      );
+    },
+  },
+  {
+    id: 'oficio_duenio_libre',
+    seccion: 'oficio',
+    peso: 5,
+    cuando: (c) => c.duenios.length > 0 && c.duenios.every((d) => d.destino === 'libre'),
+    texto: () =>
+      'A todos los que les sacó algo los dejó irse enteros. Ni una escena, ni un mensaje, ' +
+      'ni una foto para que circulara. En este rubro eso se lee de dos maneras y él ' +
+      'nunca aclaró cuál era la suya.',
   },
   {
     id: 'oficio_exterior',

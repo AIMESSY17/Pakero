@@ -12,6 +12,7 @@ import { crearPartida } from '../src/core/partida.js';
 import {
   construirAnio,
   eventoActual,
+  eventoPorId,
   elegirOpcion,
   continuar,
   jugarConquista,
@@ -24,6 +25,8 @@ import {
 import { mudarse, destinosDisponibles } from '../src/core/territorio.js';
 import { validarPool, validarCobertura } from '../src/data/eventos/index.js';
 import { inventarioBiografia } from '../src/core/biografia.js';
+import { totalCliffhangers } from '../src/core/cliffhanger.js';
+import { afinidadDominante } from '../src/core/negocio.js';
 import { formatearGuita } from '../src/core/constants.js';
 
 const N = Number(process.argv[2] ?? 300);
@@ -64,6 +67,18 @@ let ecosResurgidos = 0;
 let bisagras = 0;
 let bisagrasTerritorio = 0;
 
+// Territorio: la vida alrededor de la conquista.
+const terr = { acercamiento: 0, duenio: 0, mantenimiento: 0, tension: 0, perdidos: 0 };
+const destinos = { libre: 0, humillado: 0, aliado: 0 };
+const automaticosPorAnio = [];
+let resumenes = 0;
+let resumenesSinCliffhanger = 0;
+
+// Negocios (23+) y el corte de los eventos de facultad.
+const rubros = { comercio:0, finanzas:0, territorio:0, politica:0, farandula:0, '(ninguna)':0 };
+let eventosNegocio = 0;
+let violacionesCorte = 0;
+
 for (let i = 0; i < N; i++) {
   const estado = crearPartida({ nombre: 'Test', seed: (i * 2654435761) >>> 0 });
   construirAnio(estado);
@@ -77,6 +92,18 @@ for (let i = 0; i < N; i++) {
         continue;
       }
       const { def, runtime } = actual;
+      if (!runtime.resuelto) {
+        if (def.rubro) eventosNegocio++;
+        // Contrato duro: nada de facultad desde los 23, nada de negocios antes.
+        if (def.camino === 'estudiar' && estado.edad >= 23) violacionesCorte++;
+        if (def.rubro && estado.edad < 23) violacionesCorte++;
+      }
+      if (def.especial && !runtime.resuelto) {
+        if (def.especial === 'acercamiento') terr.acercamiento++;
+        else if (def.especial === 'duenio') terr.duenio++;
+        else if (def.especial === 'mantenimiento') terr.mantenimiento++;
+        else if (def.especial === 'tension_terr') terr.tension++;
+      }
       if (def.tipo === 'decision' && !runtime.resuelto) {
         const validas = def.opciones
           .map((op, idx) => ({ op, idx }))
@@ -103,10 +130,17 @@ for (let i = 0; i < N; i++) {
       sumaNota += estado.resumen.nota;
       contadorNotas++;
       ecosResurgidos += estado.resumen.ecos?.length ?? 0;
+      resumenes++;
+      // El cliffhanger es obligatorio: si falta uno solo, es un bug.
+      const cl = estado.resumen.cliffhanger;
+      if (!cl || typeof cl !== 'string' || !cl.trim()) resumenesSinCliffhanger++;
+      automaticosPorAnio.push(
+        estado.anioActual.eventos.filter((e) => eventoPorId(e.id)?.tipo === 'automatico').length
+      );
       // Un jugador random tambien se muda y se retira de vez en cuando.
       if (estado.edad >= 18 && Math.random() < 0.06) {
-        const destinos = destinosDisponibles(estado);
-        mudarse(estado, destinos[Math.floor(Math.random() * destinos.length)]);
+        const aDonde = destinosDisponibles(estado);
+        mudarse(estado, aDonde[Math.floor(Math.random() * aDonde.length)]);
         mudanzasHechas++;
       }
       if (puedeRetirarse(estado) && Math.random() < 0.05) {
@@ -149,6 +183,12 @@ for (let i = 0; i < N; i++) {
   if (m.includes('cierre')) vinc.socioCierre++;
   if (estado.socio?.estado === 'traiciono') vinc.traicion++;
 
+  const rub = afinidadDominante(estado);
+  rubros[rub ?? '(ninguna)'] = (rubros[rub ?? '(ninguna)'] ?? 0) + 1;
+
+  for (const d of estado.duenios ?? []) destinos[d.destino] = (destinos[d.destino] ?? 0) + 1;
+  terr.perdidos += (estado.territoriosPerdidos ?? []).length;
+
   for (const id of estado.especialesJugados ?? []) {
     if (id.includes('bisagra_terr')) bisagrasTerritorio++;
     else if (id.includes('bisagra')) bisagras++;
@@ -179,6 +219,36 @@ console.log(`  Tuvieron hijo:     ${pct(vinc.hijo)}   tracker final promedio ${p
 console.log(`  Socio presentado:  ${pct(vinc.socioPresentacion)}`);
 console.log(`  Llegó a la prueba: ${pct(vinc.socioPrueba)}   te traicionó ${pct(vinc.traicion)}`);
 console.log(`  Cerró el arco:     ${pct(vinc.socioCierre)}`);
+
+console.log('');
+console.log('TERRITORIO');
+console.log(`  Acercamientos:       ${terr.acercamiento}   (te falta poco: 1 a 9 puntos)`);
+console.log(
+  `  Dueños anteriores:   ${terr.duenio}   → dejar ir ${destinos.libre} / humillar ${destinos.humillado} / sumar ${destinos.aliado}`
+);
+console.log(`  Mantenimientos:      ${terr.mantenimiento}   → territorios PERDIDOS ${terr.perdidos}`);
+console.log(`  Tensión entre zonas: ${terr.tension}`);
+
+console.log('');
+console.log('NEGOCIOS (23+)');
+console.log(`  Eventos de negocio:  ${eventosNegocio}   (${(eventosNegocio / N).toFixed(1)} por partida)`);
+console.log(
+  `  Corte de facultad:   ${violacionesCorte === 0 ? 'ok: 0 violaciones' : 'FALLA: ' + violacionesCorte + ' violaciones'}`
+);
+console.log('  Afinidad dominante al cerrar:');
+for (const [k, v] of Object.entries(rubros).sort((a, b) => b[1] - a[1]))
+  console.log(`    ${k.padEnd(12)} ${String(v).padStart(4)}  ${pct(v)}`);
+
+console.log('');
+console.log('RITMO');
+console.log(`  Automáticos por año: ${prom(automaticosPorAnio)}   (tiene que caer entre 1 y 2)`);
+console.log(
+  `  Cliffhangers:        ${resumenes - resumenesSinCliffhanger}/${resumenes} resúmenes` +
+    (resumenesSinCliffhanger
+      ? `   ⚠ FALTAN ${resumenesSinCliffhanger}`
+      : '   ✓ ninguno sin gancho') +
+    `   (banco de ${totalCliffhangers()})`
+);
 
 console.log('\nPROMEDIOS');
 console.log(`  Edad final:        ${(sumaEdad / N).toFixed(1)}`);
