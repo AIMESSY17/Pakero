@@ -1,6 +1,8 @@
 import { crearRng, rndElem, rndInt, chance } from './rng.js';
 import { NOMBRES_VILLEROS, APODOS, STREAMERS_PARODIA } from '../data/nombres.js';
 import { VILLAS } from '../data/lugares.js';
+import { estadoCaminoInicial } from './camino.js';
+import { crearSocio } from './vinculos.js';
 import {
   EDAD_INICIAL,
   GUITA_INICIAL,
@@ -70,6 +72,23 @@ export function crearPartida({ nombre, apodo, seed } = {}) {
     movidas: 0,
 
     rival: crearRival(rng),
+
+    // El camino se define recien a los 18. Hasta entonces solo se junta el
+    // contador oculto de puntos de estudio (ver core/camino.js).
+    camino: estadoCaminoInicial(),
+
+    // El socio ya existe con nombre y apodo desde el minuto cero, pero recien
+    // aparece en la partida cuando cae su evento de presentacion (19-24).
+    socio: crearSocio({ rng }),
+
+    // El hijo se crea si y cuando cae ese evento (28-30).
+    hijo: null,
+
+    // Flags que van a volver dentro de 3-5 años (ver core/memoria.js).
+    memoria: [],
+
+    // Ids de eventos especiales ya jugados: ninguno se repite.
+    especialesJugados: [],
 
     ubicacion,
     origen: { tipo: 'villa', nombre: villaOrigen },

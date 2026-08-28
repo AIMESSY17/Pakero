@@ -78,28 +78,43 @@ export const NIVEL_TERRITORIO = {
 
 /**
  * Umbrales para que se dispare la conquista de cada nivel.
- * `cumple(stats, guita)` devuelve true cuando el jugador cruza el umbral.
+ *
+ *   cumple(stats, guita)   true cuando el jugador cruza el umbral
+ *   progreso(stats, guita) 0..1 para la barra de la ficha
+ *   falta(stats, guita)    que le falta exactamente para cruzarlo. Lo usan las
+ *                          bisagras de Territorio para saber donde empujar.
  */
 export const UMBRALES_TERRITORIO = {
   1: {
     texto: 'Calle 40+',
     cumple: (s) => s.calle >= 40,
     progreso: (s) => s.calle / 40,
+    falta: (s) => ({ stats: { calle: Math.max(0, 40 - s.calle) }, guita: 0 }),
   },
   2: {
     texto: 'Calle + Fama 60+',
     cumple: (s) => s.calle + s.fama >= 60,
     progreso: (s) => (s.calle + s.fama) / 60,
+    // Da lo mismo por donde se llegue: se reparte mitad y mitad.
+    falta: (s) => {
+      const hueco = Math.max(0, 60 - (s.calle + s.fama));
+      return { stats: { calle: Math.ceil(hueco / 2), fama: Math.floor(hueco / 2) }, guita: 0 };
+    },
   },
   3: {
     texto: 'Fama 75+ y $5.000.000',
     cumple: (s, guita) => s.fama >= 75 && guita >= 5_000_000,
     progreso: (s, guita) => Math.min(s.fama / 75, guita / 5_000_000),
+    falta: (s, guita) => ({
+      stats: { fama: Math.max(0, 75 - s.fama) },
+      guita: Math.max(0, 5_000_000 - guita),
+    }),
   },
   4: {
     texto: 'Fama 95+',
     cumple: (s) => s.fama >= 95,
     progreso: (s) => s.fama / 95,
+    falta: (s) => ({ stats: { fama: Math.max(0, 95 - s.fama) }, guita: 0 }),
   },
 };
 

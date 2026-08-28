@@ -49,3 +49,22 @@ export const GLOSARIO_CONTADORES = {
     sirve: 'Paga $800.000 de renta cada año que lo tengas, sube Calle y Fama al conquistarlo, y define junto con la Fama qué tan raro sale tu final.',
   },
 };
+
+/** Lo que sumó la bifurcación de los 18 y los dos vínculos que el juego sigue. */
+export const GLOSARIO_VINCULOS = {
+  camino: {
+    que: 'El camino que elegiste a los 18: seguir estudiando o meterle a la calle.',
+    como: 'Se define en el evento de los 18. Si estudiás, la carrera que te toca sale sola de qué tipo de eventos "de cabeza" te fueron saliendo en el secundario.',
+    sirve: 'Cambia parte de los eventos que te salen en la adultez y pesa fuerte en la biografía del final. Desde los 25 a los 30 hay una segunda chance de reconvertirte, pagando.',
+  },
+  hijo: {
+    que: 'Cómo le está yendo a tu pibe, de 0 a 100.',
+    como: 'Sube cuando le ponés plata, tiempo y presencia; baja cuando elegís la movida por encima de él, y baja solo si vivís marcado o roto.',
+    sirve: 'No entra en ninguna fórmula de guita ni de tirada: define el bloque de la biografía final que habla de él. Es la única cosa del juego que no se mide en plata.',
+  },
+  socio: {
+    que: 'El único tipo que te acompaña toda la carrera además del Rival.',
+    como: 'Aparece entre los 19 y los 24 y tiene tres momentos: cuando se suma, cuando se prueba y cuando se cierra el arco.',
+    sirve: 'Cómo lo trataste decide si en el momento de crisis te salva o te da vuelta la cara. La lealtad no tiene barra a propósito: se nota en lo que él hace, no en un número.',
+  },
+};

@@ -2,6 +2,9 @@ import { FINALES } from '../data/finales.js';
 import { rarezaFinal } from './formulas.js';
 import { formatearGuita } from './constants.js';
 import { nombreRivalCompleto } from '../data/nombres.js';
+import { armarBiografia } from './biografia.js';
+import { etiquetaCamino } from './camino.js';
+import { vistaHijo, vistaSocio } from './vinculos.js';
 
 /**
  * Elige el final. Sin tabla de prioridad ni puntajes: recorre la lista y se
@@ -22,11 +25,18 @@ export function resolverFinal(estado, causa) {
     rival: estado.rival,
     ultimaMovidaFallida: estado.ultimaMovidaFallida,
     seRetiro: estado.seRetiro,
+    // Lo que sumo la bifurcacion de los 18 y los vinculos. Hoy ninguna de las
+    // 14 condiciones lo usa, pero esta disponible para las que vengan.
+    camino: estado.camino?.elegido ?? null,
+    subVariante: estado.camino?.subVariante ?? null,
+    reconvertido: !!estado.camino?.reconversion,
+    hijo: estado.hijo ? { ...estado.hijo } : null,
+    socio: estado.socio ? { ...estado.socio } : null,
   };
 
   const final = FINALES.find((f) => f.condicion(ctx)) ?? FINALES[FINALES.length - 1];
 
-  return {
+  const resuelto = {
     id: final.id,
     titulo: final.titulo,
     apodo: final.apodo,
@@ -37,6 +47,16 @@ export function resolverFinal(estado, causa) {
     causa,
     ctx,
   };
+
+  // La biografia se arma una sola vez, al cerrar la partida, y queda guardada
+  // dentro del final: asi la pantalla de fin no depende de recalcular nada y
+  // una partida cargada muestra exactamente el mismo texto.
+  resuelto.biografia = armarBiografia(estado, resuelto);
+  resuelto.camino = etiquetaCamino(estado);
+  resuelto.hijo = vistaHijo(estado);
+  resuelto.socio = estado.socio?.momentos?.length ? vistaSocio(estado) : null;
+
+  return resuelto;
 }
 
 /** Texto plano para el botón "Copiar resumen de carrera". */
@@ -55,6 +75,21 @@ export function resumenParaCopiar(estado, final) {
     `Stats — Calle ${estado.stats.calle} | Fama ${estado.stats.fama} | Maña ${estado.stats.mana} | Atención ${estado.stats.atencion} | Salud ${estado.stats.salud}`
   );
   L.push('');
+  if (final.camino) {
+    L.push('EL CAMINO');
+    L.push(`  ${final.camino.icono} ${final.camino.label}${final.camino.reconvertido ? ' (reconversión de grande)' : ''}`);
+    L.push('');
+  }
+  if (final.hijo) {
+    L.push('LA SANGRE');
+    L.push(`  ${final.hijo.nombre}, ${final.hijo.edadLabel} — ${final.hijo.label} (${final.hijo.tracker}/100)`);
+    L.push('');
+  }
+  if (final.socio) {
+    L.push('EL SOCIO');
+    L.push(`  ${final.socio.completo} — ${final.socio.label}`);
+    L.push('');
+  }
   L.push('EL DUELO ETERNO');
   L.push(`  Vos: ${estado.ventas} ventas`);
   L.push(`  ${nombreRivalCompleto(estado.rival)}: ${estado.rival.ventas} ventas`);

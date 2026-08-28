@@ -15,6 +15,22 @@ export const NOMBRES_VILLEROS = [
   'Alan',
 ];
 
+/** Nombres para el hijo. Neutros a proposito: el juego nunca le asigna genero. */
+export const NOMBRES_HIJOS = [
+  'Thiago',
+  'Morena',
+  'Bautista',
+  'Milagros',
+  'Ciro',
+  'Zoe',
+  'Benja',
+  'Abril',
+  'Dilan',
+  'Guadalupe',
+  'Lautaro',
+  'Jazmín',
+];
+
 export const APODOS = [
   'Toto',
   'Rulero',
@@ -37,9 +53,8 @@ export const APODOS = [
 /**
  * Streamers de apuestas para el cartel de introduccion.
  *
- * Son TODOS inventados a proposito. Ninguno es ni parodia reconocible de una
- * persona real: son arquetipos del rubro (el del codigo de referido, el que
- * pierde un sueldo en vivo). Ver README, reglas de contenido.
+ * Son todos inventados: arquetipos del rubro (el del codigo de referido, el
+ * que pierde un sueldo en vivo), no parodias de nadie en particular.
  */
 export const STREAMERS_PARODIA = [
   {

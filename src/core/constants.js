@@ -141,9 +141,132 @@ export const PROB_CONQUISTA_FORASTERO = 0.5;
 export const RAREZA_UMBRALES = { legendaria: 120, rara: 70 };
 export const PUNTOS_POR_TERRITORIO = 20;
 
+// ---------------------------------------------------------------------------
+// Camino: la bifurcacion de los 18
+// ---------------------------------------------------------------------------
+// Durante el Secundario se junta `puntosEstudio` en silencio (el jugador no lo
+// ve). A los 18 se abre la bifurcacion Estudiar vs Calle y esos puntos son lo
+// que hace que "Estudiar" sea una opcion con chances reales o un tiro al aire.
+export const EDAD_BIFURCACION = 18;
+/** Con esto o mas, la opcion Estudiar aparece marcada como viable en el panel. */
+export const PUNTOS_ESTUDIO_VIABLE = 12;
+/** Cuanto puede empujar el contador oculto a la tirada de la bifurcacion. */
+export const BONUS_ESTUDIO_MAX = 0.35;
+export const PUNTOS_ESTUDIO_TECHO = 30;
+
+export const CAMINOS = {
+  estudiar: {
+    id: 'estudiar',
+    label: 'Estudiar',
+    icono: '🎓',
+    desc: 'Seguiste con los libros. Mas lento, pero con techo mas alto.',
+  },
+  calle: {
+    id: 'calle',
+    label: 'La calle',
+    icono: '🧱',
+    desc: 'Te quedaste donde ya sabias moverte. Arranca rapido y se paga despues.',
+  },
+};
+
+// Sub-variantes de Estudiar. No son rutas: solo cambian el sabor de los
+// eventos de la etapa. Se deciden solas segun que tipo de eventos
+// estudio_friendly predominaron en el Secundario.
+export const SUBVARIANTES = {
+  comunicacion: {
+    id: 'comunicacion',
+    label: 'Comunicación',
+    icono: '🎙️',
+    desc: 'Carrera de imagen y verso. Todo lo tuyo pasa por como sonas.',
+  },
+  administracion: {
+    id: 'administracion',
+    label: 'Administración de Empresas',
+    icono: '📊',
+    desc: 'Carrera de numeros y estructura. Todo lo tuyo pasa por como cerras.',
+  },
+};
+
+// --- Segunda chance de estudiar (25-30) ---
+export const EDAD_SEGUNDA_CHANCE_MIN = 25;
+export const EDAD_SEGUNDA_CHANCE_MAX = 30;
+export const COSTO_RECONVERSION_BASE = 1_500_000;
+/** Cada punto de "calle acumulada" encarece dejar la vida que llevas. */
+export const COSTO_RECONVERSION_POR_PUNTO = 140_000;
+/** Ademas escala con el stat Calle: cuanto mas sos el barrio, mas cuesta irte. */
+export const COSTO_RECONVERSION_PESO_CALLE = 1.2;
+/** Lo que suma al contador de "calle acumulada" cada año en la calle. */
+export const CALLE_ACUMULADA_POR_ANIO = 1;
+export const CALLE_ACUMULADA_POR_MOVIDA = 2;
+
+// ---------------------------------------------------------------------------
+// Hijo
+// ---------------------------------------------------------------------------
+export const EDAD_HIJO_MIN = 28;
+export const EDAD_HIJO_MAX = 30;
+export const HIJO_TRACKER_INICIAL = 50;
+/** Deriva anual del tracker segun como venis vos: la casa se nota. */
+export const HIJO_DERIVA_ATENCION_ALTA = -3; // Atencion >= zona roja
+export const HIJO_DERIVA_SALUD_BAJA = -2;
+export const HIJO_DERIVA_BUEN_ANIO = 2; // nota del año >= 7.5
+
+export const HIJO_ESTADOS = [
+  { min: 75, id: 'muy_bien', label: 'Le va muy bien', color: 'verde', icono: '🌟' },
+  { min: 50, id: 'bien', label: 'Le va bien', color: 'verde', icono: '🙂' },
+  { min: 25, id: 'complicado', label: 'Viene complicado', color: 'dorado', icono: '😕' },
+  { min: 0, id: 'mal', label: 'Le va mal', color: 'rojo', icono: '💔' },
+];
+
+export function estadoHijo(tracker) {
+  return HIJO_ESTADOS.find((e) => tracker >= e.min) ?? HIJO_ESTADOS[HIJO_ESTADOS.length - 1];
+}
+
+// ---------------------------------------------------------------------------
+// Socio recurrente
+// ---------------------------------------------------------------------------
+// Lealtad es un contador liviano y oculto, no un stat: no tiene barra propia
+// ni entra en ninguna formula. Solo decide como sale su arco.
+export const SOCIO_LEALTAD_INICIAL = 55;
+export const SOCIO_LEALTAD_MIN = 0;
+export const SOCIO_LEALTAD_MAX = 100;
+/** Debajo de esto, cuando le toque el momento de arco, te da vuelta la cara. */
+export const SOCIO_UMBRAL_TRAICION = 35;
+/** Arriba de esto te banca aunque se le venga el mundo abajo. */
+export const SOCIO_UMBRAL_FIRME = 65;
+/** Lo que resta cada opcion marcada como egoista. */
+export const SOCIO_PENALIZACION_EGOISTA = -8;
+/** Edades en las que puede caer cada momento del arco. */
+export const SOCIO_ARCO = [
+  { id: 'presentacion', edadMin: 19, edadMax: 24 },
+  { id: 'prueba', edadMin: 27, edadMax: 34 },
+  { id: 'cierre', edadMin: 36, edadMax: 45 },
+];
+
+// ---------------------------------------------------------------------------
+// Memoria de mediano plazo
+// ---------------------------------------------------------------------------
+// Algunas cosas no se terminan el año que pasan. Se anotan como flag y vuelven
+// entre 3 y 5 años despues como un eco narrativo, una sola vez.
+export const MEMORIA_ANIOS_MIN = 3;
+export const MEMORIA_ANIOS_MAX = 5;
+/** Cuantos ecos pueden resurgir en un mismo año. */
+export const MEMORIA_ECOS_POR_ANIO = 1;
+
+// ---------------------------------------------------------------------------
+// Eventos de bisagra
+// ---------------------------------------------------------------------------
+/** Cada cuantos años cae una bisagra (20, 25, 30, 35, 40). */
+export const BISAGRA_CADA = 5;
+export const BISAGRA_EDAD_MIN = 20;
+/** Si el proximo hito de Territorio esta a este % o mas, la bisagra es esa. */
+export const BISAGRA_UMBRAL_TERRITORIO = 0.7;
+
+/** Techo de eventos especiales por año, sin contar la crisis. */
+export const MAX_ESPECIALES_POR_ANIO = 2;
+
 // --- Guardado ---
-export const STORAGE_KEY = 'paquero:partida:v1';
-export const STORAGE_VERSION = 1;
+export const STORAGE_KEY = 'paquero:partida:v2';
+export const STORAGE_VERSION = 2;
 
 // --- Helpers numericos ---
 export const clamp = (v, min, max) => Math.min(max, Math.max(min, v));

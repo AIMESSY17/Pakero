@@ -63,6 +63,45 @@ export function Final({ estado, onNueva, onMenu, onEstadisticas }) {
           <p className="mx-auto mt-6 max-w-lg leading-relaxed text-humo">{f.texto}</p>
         </div>
 
+        {/*
+          La biografia. Se arma al cerrar la partida combinando el banco de
+          bloques (ver data/biografia.js) y queda guardada dentro del final,
+          asi una partida cargada muestra exactamente el mismo texto.
+        */}
+        {f.biografia?.length > 0 && (
+          <Panel className="space-y-4">
+            <Titulo>La biografía</Titulo>
+            <div className="flex flex-wrap gap-1.5">
+              {f.camino && (
+                <Chip color={f.camino.id === 'estudiar' ? 'verde' : 'dorado'}>
+                  {f.camino.icono} {f.camino.label}
+                  {f.camino.reconvertido ? ' ↩' : ''}
+                </Chip>
+              )}
+              {f.hijo && (
+                <Chip color={f.hijo.color}>
+                  🧒 {f.hijo.nombre} · {f.hijo.tracker}/100
+                </Chip>
+              )}
+              {f.socio && (
+                <Chip color={f.socio.color}>
+                  {f.socio.icono} {f.socio.nombre}
+                </Chip>
+              )}
+            </div>
+            <div className="space-y-4">
+              {f.biografia.map((b) => (
+                <div key={b.seccion} className="border-l-2 border-borde pl-3.5">
+                  <h3 className="font-display text-[10px] uppercase tracking-[0.22em] text-humo">
+                    {b.titulo}
+                  </h3>
+                  <p className="mt-1.5 leading-relaxed text-tiza">{b.texto}</p>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        )}
+
         {/* Cómo cerraste */}
         <Panel className="space-y-4">
           <Titulo>Cómo cerraste</Titulo>

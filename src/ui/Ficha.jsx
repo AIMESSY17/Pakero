@@ -3,7 +3,9 @@ import { STATS, STAT_META, formatearGuita, formatearGuitaCorta, ETAPAS } from '.
 import { progresoProximoHito } from '../core/territorio.js';
 import { activosDelJugador } from '../core/mercado.js';
 import { nombreRivalCompleto } from '../data/nombres.js';
-import { GLOSARIO_STATS, GLOSARIO_CONTADORES } from '../data/glosario.js';
+import { GLOSARIO_STATS, GLOSARIO_CONTADORES, GLOSARIO_VINCULOS } from '../data/glosario.js';
+import { etiquetaCamino } from '../core/camino.js';
+import { vistaHijo, vistaSocio } from '../core/vinculos.js';
 
 /** Flecha de tendencia contra el año anterior. */
 function Tendencia({ delta, invertido }) {
@@ -111,6 +113,75 @@ function DueloRival({ estado }) {
   );
 }
 
+const COLOR_VINCULO = {
+  verde: { borde: 'border-verde/30 bg-verde-hondo/25', barra: 'bg-verde', texto: 'text-verde' },
+  dorado: { borde: 'border-dorado/30 bg-dorado-hondo/20', barra: 'bg-dorado', texto: 'text-dorado' },
+  rojo: { borde: 'border-rojo/30 bg-rojo-hondo/25', barra: 'bg-rojo', texto: 'text-rojo' },
+  humo: { borde: 'border-borde bg-panel-alto', barra: 'bg-humo', texto: 'text-humo' },
+};
+
+/**
+ * Los dos vinculos que el juego sigue de verdad. Se muestran juntos y solo
+ * cuando existen: el hijo aparece si nacio, el socio si ya se presento.
+ *
+ * El hijo tiene barra porque su tracker es un numero que el jugador tiene que
+ * poder mirar. El socio NO: su lealtad es un contador liviano y oculto, asi
+ * que lo unico que se ve es como esta parado con vos.
+ */
+function LosTuyos({ estado }) {
+  const hijo = vistaHijo(estado);
+  const socio = estado.socio?.momentos?.length ? vistaSocio(estado) : null;
+  if (!hijo && !socio) return null;
+
+  return (
+    <div>
+      <Titulo>Los tuyos</Titulo>
+      <div className="mt-2 space-y-2">
+        {hijo && (
+          <div className={`rounded-xl border p-3 ${COLOR_VINCULO[hijo.color].borde}`}>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-tiza">
+                <span aria-hidden>🧒</span>
+                {hijo.nombre}
+                <span className="font-normal text-humo-tenue">{hijo.edadLabel}</span>
+                <InfoTip info={GLOSARIO_VINCULOS.hijo} />
+              </span>
+              <span className="font-mono text-xs tabular-nums text-tiza">{hijo.tracker}/100</span>
+            </div>
+            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-noche">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${COLOR_VINCULO[hijo.color].barra}`}
+                style={{ width: `${hijo.tracker}%` }}
+              />
+            </div>
+            <p className={`mt-1 text-[11px] ${COLOR_VINCULO[hijo.color].texto}`}>
+              {hijo.icono} {hijo.label}
+            </p>
+          </div>
+        )}
+        {socio && (
+          <div className={`rounded-xl border p-3 ${COLOR_VINCULO[socio.color].borde}`}>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-tiza">
+                <span aria-hidden>🤝</span>
+                Tu socio
+                <InfoTip info={GLOSARIO_VINCULOS.socio} />
+              </span>
+              <span className="font-mono text-[10px] text-humo-tenue">
+                {socio.momentos.length}/3 del arco
+              </span>
+            </div>
+            <p className="mt-1 min-w-0 truncate text-sm text-tiza">{socio.completo}</p>
+            <p className={`mt-0.5 text-[11px] ${COLOR_VINCULO[socio.color].texto}`}>
+              {socio.icono} {socio.label}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ProgresoHito({ estado }) {
   const hito = progresoProximoHito(estado);
   if (hito.completo) {
@@ -167,6 +238,7 @@ function ActivosMercado({ estado }) {
 export function Ficha({ estado, className = '' }) {
   const previo = estado.historial[estado.historial.length - 1];
   const deltaDe = (stat) => (previo ? estado.stats[stat] - previo.stats[stat] : 0);
+  const camino = etiquetaCamino(estado);
 
   return (
     <Panel className={`textura-asfalto min-w-0 space-y-5 ${className}`}>
@@ -191,6 +263,15 @@ export function Ficha({ estado, className = '' }) {
             >
               <span className="min-w-0 truncate">📍 {estado.ubicacion.nombre}</span>
             </Chip>
+            {camino && (
+              <Chip color={camino.id === 'estudiar' ? 'verde' : 'dorado'} className="max-w-full min-w-0">
+                <span className="min-w-0 truncate">
+                  {camino.icono} {camino.label}
+                  {camino.reconvertido ? ' ↩' : ''}
+                </span>
+                <InfoTip info={GLOSARIO_VINCULOS.camino} />
+              </Chip>
+            )}
           </div>
         </div>
       </div>
@@ -259,6 +340,7 @@ export function Ficha({ estado, className = '' }) {
       </div>
 
       <DueloRival estado={estado} />
+      <LosTuyos estado={estado} />
       <ProgresoHito estado={estado} />
 
       {estado.territorios.length > 0 && (

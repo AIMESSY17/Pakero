@@ -127,6 +127,61 @@ export function resolverConquista(estado, nivel, bonusMinijuego = 0, mods = {}) 
   };
 }
 
+/**
+ * Empujón hacia el próximo hito. Lo usan las bisagras enganchadas a Territorio:
+ * el año que se siente distinto es justo el que te deja del otro lado.
+ *
+ * Estas subidas NO pasan por rendimiento decreciente a propósito: el freno
+ * existe para que el contenido generoso no lleve los stats al techo solo, y
+ * acá el jugador se la está jugando en un evento de riesgo alto por exactamente
+ * esto. El critico_exito cierra el hueco entero; el desastre te tira para atrás.
+ *
+ * El empuje de guita va topeado: el umbral de nivel 3 pide $5.000.000 y regalarlos
+ * convertiría la bisagra en un atajo en vez de un envión.
+ */
+const FACTOR_EMPUJE = {
+  critico_exito: 1,
+  exito: 0.7,
+  exito_con_costo: 0.4,
+  fracaso: 0,
+  critico_fracaso: -0.3,
+};
+export const TOPE_EMPUJE_GUITA = 1_500_000;
+
+export function empujarHito(estado, grado) {
+  const nivel = estado.territorios.length + 1;
+  const factor = FACTOR_EMPUJE[grado] ?? 0;
+  if (nivel > 4 || !factor) return null;
+
+  const umbral = UMBRALES_TERRITORIO[nivel];
+  const hueco = umbral.falta?.(estado.stats, estado.guita);
+  if (!hueco) return null;
+
+  const deltas = {};
+  for (const [stat, v] of Object.entries(hueco.stats)) {
+    // Con factor negativo el hueco puede ser 0 (ya lo cumplía): ahí se le
+    // saca un mordisco fijo para que perder también se sienta.
+    const base = factor < 0 && v === 0 ? 8 : v;
+    const d = Math.round(base * factor);
+    if (d) deltas[stat] = d;
+  }
+  const aplicados = {};
+  for (const [stat, d] of Object.entries(deltas)) {
+    const antes = estado.stats[stat];
+    estado.stats[stat] = clampStat(antes + d);
+    const real = estado.stats[stat] - antes;
+    if (real) aplicados[stat] = real;
+  }
+
+  let guita = 0;
+  if (hueco.guita > 0 && factor > 0) {
+    guita = Math.round(Math.min(hueco.guita * factor, TOPE_EMPUJE_GUITA));
+    estado.guita += guita;
+  }
+
+  return { nivel, deltas: aplicados, guita };
+}
+
 /** Todos los destinos a los que se puede mudar (desde los 18). */
 export function destinosDisponibles(estado) {
   const actual = estado.ubicacion.nombre;
